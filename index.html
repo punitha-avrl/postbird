@@ -17,7 +17,7 @@
           <div class="brand-mark" aria-hidden="true">
             <span></span><span></span><span></span>
           </div>
-          <span>postbird</span>
+          <span>Post Bird</span>
         </div>
         <div class="workspace-switcher">
           <span class="workspace-icon">P</span>
@@ -108,7 +108,12 @@
             >
               ↻
             </button>
-            <input id="collectionFile" type="file" accept=".json,application/json" hidden />
+            <input
+              id="collectionFile"
+              type="file"
+              accept=".json,application/json"
+              hidden
+            />
           </div>
           <div id="sidebarContent" class="sidebar-content">
             <div class="collection-heading">
@@ -141,7 +146,11 @@
           <div class="sidebar-footer">
             <span class="online-dot"></span>
             <span>All changes saved locally</span>
-            <span id="appVersion" class="app-version" aria-label="App version"></span>
+            <span
+              id="appVersion"
+              class="app-version"
+              aria-label="App version"
+            ></span>
           </div>
         </aside>
 
@@ -191,7 +200,8 @@
               </div>
               <div class="request-actions">
                 <button id="saveRequest" class="secondary-button">
-                  <span>▣</span> Save <span class="button-caret" aria-hidden="true"></span>
+                  <span>▣</span> Save
+                  <span class="button-caret" aria-hidden="true"></span>
                 </button>
                 <button
                   class="icon-button small"
@@ -231,7 +241,8 @@
                 aria-label="Request URL"
               />
               <button id="sendButton" class="send-button">
-                <span>Send</span><span class="send-caret" aria-hidden="true"></span>
+                <span>Send</span
+                ><span class="send-caret" aria-hidden="true"></span>
               </button>
             </div>
 
@@ -393,14 +404,28 @@
         <form id="appDialogForm" class="app-dialog-form">
           <div class="dialog-heading">
             <h2 id="appDialogTitle"></h2>
-            <button type="button" class="dialog-close" aria-label="Close dialog">×</button>
+            <button
+              type="button"
+              class="dialog-close"
+              aria-label="Close dialog"
+            >
+              ×
+            </button>
           </div>
           <p id="appDialogMessage" class="dialog-message"></p>
-          <label id="appDialogFieldLabel" class="dialog-field-label" for="appDialogInput"></label>
+          <label
+            id="appDialogFieldLabel"
+            class="dialog-field-label"
+            for="appDialogInput"
+          ></label>
           <input id="appDialogInput" class="dialog-input" autocomplete="off" />
           <div class="dialog-actions">
-            <button id="appDialogCancel" type="button" class="secondary-button">Cancel</button>
-            <button id="appDialogConfirm" type="submit" class="dialog-confirm">Create</button>
+            <button id="appDialogCancel" type="button" class="secondary-button">
+              Cancel
+            </button>
+            <button id="appDialogConfirm" type="submit" class="dialog-confirm">
+              Create
+            </button>
           </div>
         </form>
       </dialog>
@@ -418,8 +443,8 @@
             </button>
           </div>
           <p class="dialog-message">
-            Use <code>{{variable}}</code> in URLs, query parameters, headers, and
-            request bodies.
+            Use <code>{{variable}}</code> in URLs, query parameters, headers,
+            and request bodies.
           </p>
           <label class="dialog-field-label" for="environmentName"
             >Environment name</label
