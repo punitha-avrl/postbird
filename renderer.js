@@ -14,14 +14,25 @@ const STORAGE_KEYS = {
   history: "postbird.history",
   requests: "postbird.requests",
   collections: "postbird.collections",
+  environments: "postbird.environments",
+  activeEnvironment: "postbird.activeEnvironment",
 };
 
 let activeCollection = "Getting started";
 let toastTimer;
 let dialogResolve;
+let editingEnvironmentName = null;
 let historyItems = readStored(STORAGE_KEYS.history, []);
 let savedRequests = readStored(STORAGE_KEYS.requests, []);
 let collections = readStored(STORAGE_KEYS.collections, ["Getting started"]);
+let environments = readStored(STORAGE_KEYS.environments, []).filter(
+  (environment) =>
+    environment &&
+    typeof environment.name === "string" &&
+    Array.isArray(environment.variables),
+);
+let activeEnvironment =
+  localStorage.getItem(STORAGE_KEYS.activeEnvironment) || "";
 let collapsedCollections = new Set(
   readStored("postbird.collapsedCollections", []),
 );
@@ -42,6 +53,250 @@ function writeStored(key, value) {
   } catch (error) {
     console.error(`Unable to save ${key} to local storage.`, error);
     showToast("Could not save to local storage.");
+  }
+}
+
+function getActiveEnvironment() {
+  return environments.find(
+    (environment) => environment.name === activeEnvironment,
+  );
+}
+
+function saveEnvironments() {
+  try {
+    localStorage.setItem(
+      STORAGE_KEYS.environments,
+      JSON.stringify(environments),
+    );
+    if (activeEnvironment) {
+      localStorage.setItem(STORAGE_KEYS.activeEnvironment, activeEnvironment);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.activeEnvironment);
+    }
+    return true;
+  } catch (error) {
+    console.error("Unable to save environments.", error);
+    showToast("Could not save environments locally.");
+    return false;
+  }
+}
+
+function renderEnvironmentMenu() {
+  const menu = document.querySelector("#environmentMenu");
+  menu.replaceChildren();
+  const addMenuItem = (label, action, selected = false) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.setAttribute("role", "menuitem");
+    item.textContent = label;
+    item.classList.toggle("selected", selected);
+    item.addEventListener("click", action);
+    menu.append(item);
+  };
+
+  addMenuItem(
+    "No environment",
+    () => selectEnvironment(""),
+    !activeEnvironment,
+  );
+  for (const environment of environments) {
+    addMenuItem(
+      environment.name,
+      () => selectEnvironment(environment.name),
+      environment.name === activeEnvironment,
+    );
+  }
+
+  const divider = document.createElement("div");
+  divider.className = "environment-menu-divider";
+  menu.append(divider);
+  addMenuItem("Create environment…", () => openEnvironmentEditor());
+  if (getActiveEnvironment()) {
+    addMenuItem("Edit environment…", () =>
+      openEnvironmentEditor(getActiveEnvironment()),
+    );
+  }
+}
+
+function selectEnvironment(name) {
+  const previousEnvironment = activeEnvironment;
+  activeEnvironment = name;
+  if (!saveEnvironments()) {
+    activeEnvironment = previousEnvironment;
+    return;
+  }
+  document.querySelector("#activeEnvironmentName").textContent =
+    name || "No environment";
+  document.querySelector("#environmentMenu").classList.add("hidden");
+  document
+    .querySelector("#environmentButton")
+    .setAttribute("aria-expanded", "false");
+}
+
+function addEnvironmentVariableRow(variable = {}) {
+  const row = document.createElement("div");
+  row.className = "environment-variable-row";
+  const key = document.createElement("input");
+  key.className = "dialog-input";
+  key.dataset.environmentField = "key";
+  key.placeholder = "Variable name";
+  key.setAttribute("aria-label", "Variable name");
+  key.value = variable.key || "";
+  const value = document.createElement("input");
+  value.className = "dialog-input";
+  value.dataset.environmentField = "value";
+  value.placeholder = "Value";
+  value.setAttribute("aria-label", "Variable value");
+  value.value = variable.value || "";
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "remove-row";
+  remove.textContent = "×";
+  remove.setAttribute("aria-label", "Remove variable");
+  remove.addEventListener("click", () => row.remove());
+  row.append(key, value, remove);
+  document.querySelector("#environmentVariables").append(row);
+}
+
+function openEnvironmentEditor(environment = null) {
+  const dialog = document.querySelector("#environmentDialog");
+  editingEnvironmentName = environment?.name || null;
+  document.querySelector("#environmentDialogTitle").textContent = environment
+    ? "Edit environment"
+    : "Create environment";
+  document.querySelector("#environmentName").value = environment?.name || "";
+  const variables = document.querySelector("#environmentVariables");
+  variables.replaceChildren();
+  (environment?.variables || []).forEach(addEnvironmentVariableRow);
+  if (!variables.childElementCount) addEnvironmentVariableRow();
+  document.querySelector("#deleteEnvironment").hidden = !environment;
+  document.querySelector("#environmentMenu").classList.add("hidden");
+  document
+    .querySelector("#environmentButton")
+    .setAttribute("aria-expanded", "false");
+  dialog.showModal();
+  document.querySelector("#environmentName").focus();
+}
+
+function resolveEnvironmentVariables(value, unresolvedVariables) {
+  const variables = new Map(
+    (getActiveEnvironment()?.variables || []).map(({ key, value }) => [
+      key,
+      String(value),
+    ]),
+  );
+  return String(value).replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (match, name) => {
+    const key = name.trim();
+    if (!variables.has(key)) {
+      unresolvedVariables.add(key);
+      return match;
+    }
+    return variables.get(key);
+  });
+}
+
+function sanitizeRequestUrl(value) {
+  try {
+    const url = new URL(value);
+    if (url.username) url.username = "[REDACTED]";
+    if (url.password) url.password = "[REDACTED]";
+    for (const key of url.searchParams.keys()) {
+      if (
+        /api[-_]?key|(?:^|[-_])key(?:$|[-_])|token|secret|password|credential|auth/i.test(
+          key,
+        )
+      ) {
+        url.searchParams.set(key, "[REDACTED]");
+      }
+    }
+    return url.href;
+  } catch {
+    return value;
+  }
+}
+
+function sanitizeRequestHeaders(headers) {
+  return Object.fromEntries(
+    Object.entries(headers).map(([key, value]) => [
+      key,
+      /authorization|cookie|api[-_]?key|token|secret|password|credential/i.test(
+        key,
+      )
+        ? "[REDACTED]"
+        : value,
+    ]),
+  );
+}
+
+function logRequest(method, url, headers, body) {
+  const bodyBytes = new TextEncoder().encode(body).length;
+  console.info(`[API request] ${method} ${sanitizeRequestUrl(url)}`, {
+    method,
+    url: sanitizeRequestUrl(url),
+    headers: sanitizeRequestHeaders(headers),
+    body: bodyBytes ? `[omitted; ${formatBytes(bodyBytes)}]` : "(empty)",
+  });
+}
+
+async function sendHttpRequest({ method, url, headers, body }) {
+  const parsedUrl = new URL(url);
+  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+    throw new Error("Only HTTP and HTTPS URLs are supported.");
+  }
+  if (url.length > 8192) {
+    throw new Error("The request URL is too long.");
+  }
+
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  try {
+    const response = await fetch(url, {
+      method,
+      headers,
+      body: body && !["GET", "HEAD"].includes(method) ? body : undefined,
+      signal: controller.signal,
+      redirect: "follow",
+    });
+    const chunks = [];
+    let totalBytes = 0;
+    const maxResponseBytes = 10 * 1024 * 1024;
+    const reader = response.body?.getReader();
+
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        totalBytes += value.byteLength;
+        if (totalBytes > maxResponseBytes) {
+          await reader.cancel();
+          throw new Error("Response is larger than the 10 MB limit.");
+        }
+        chunks.push(value);
+      }
+    }
+
+    const responseBytes = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      responseBytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+
+    return {
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries()),
+      body: new TextDecoder().decode(responseBytes),
+      duration: Date.now() - startedAt,
+    };
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("Request timed out after 30 seconds.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -176,7 +431,7 @@ function setRows(table, items) {
   else addRow(table);
 }
 
-function populateParamsFromUrl() {
+function populateParamsFromUrl(clearOnInvalid = false) {
   try {
     const url = new URL(urlInput.value);
     setRows(
@@ -184,16 +439,24 @@ function populateParamsFromUrl() {
       [...url.searchParams.entries()].map(([key, value]) => ({ key, value })),
     );
   } catch {
-    setRows(paramsTable, []);
+    if (clearOnInvalid) setRows(paramsTable, []);
   }
 }
 
-function getRequestUrl() {
-  const baseUrl = new URL(urlInput.value);
+function getRequestUrl(unresolvedVariables) {
+  const baseUrl = new URL(
+    resolveEnvironmentVariables(urlInput.value, unresolvedVariables),
+  );
   const params = rowsFor(paramsTable).filter((row) => row.enabled && row.key);
-  baseUrl.search = "";
-  for (const param of params)
-    baseUrl.searchParams.append(param.key, param.value);
+  if (params.length) {
+    baseUrl.search = "";
+    for (const param of params) {
+      baseUrl.searchParams.append(
+        resolveEnvironmentVariables(param.key, unresolvedVariables),
+        resolveEnvironmentVariables(param.value, unresolvedVariables),
+      );
+    }
+  }
   return baseUrl.href;
 }
 
@@ -221,7 +484,7 @@ function setActiveRequest(name, request) {
     setRows(paramsTable, request.params);
     updateUrlFromParams();
   } else {
-    populateParamsFromUrl();
+    populateParamsFromUrl(true);
   }
   responseEmpty.classList.remove("hidden");
   responseContent.classList.add("hidden");
@@ -762,31 +1025,43 @@ async function readCollectionFile(file) {
 }
 
 async function sendRequest() {
+  const unresolvedVariables = new Set();
   let requestUrl;
   try {
-    requestUrl = getRequestUrl();
+    requestUrl = getRequestUrl(unresolvedVariables);
   } catch {
-    showToast("Enter a valid HTTP or HTTPS URL.");
+    showToast(
+      unresolvedVariables.size
+        ? `Set environment variable(s): ${[...unresolvedVariables].join(", ")}`
+        : "Enter a valid HTTP or HTTPS URL.",
+    );
     urlInput.focus();
     return;
   }
-  if (!window.apiClient?.sendRequest) {
-    showToast(
-      "The request bridge is unavailable. Restart the app and try again.",
-    );
-    return;
-  }
-
   const method = methodSelect.value;
   const headers = {};
   for (const row of rowsFor(headersTable)) {
-    if (row.enabled && row.key) headers[row.key] = row.value;
+    if (row.enabled && row.key) {
+      headers[resolveEnvironmentVariables(row.key, unresolvedVariables)] =
+        resolveEnvironmentVariables(row.value, unresolvedVariables);
+    }
   }
   const bodyType = document
     .querySelector('input[name="bodyType"]:checked')
     ?.nextSibling?.textContent.trim();
   const body =
-    bodyType === "none" ? "" : document.querySelector("#requestBody").value;
+    bodyType === "none"
+      ? ""
+      : resolveEnvironmentVariables(
+          document.querySelector("#requestBody").value,
+          unresolvedVariables,
+        );
+  if (unresolvedVariables.size) {
+    showToast(
+      `Set environment variable(s): ${[...unresolvedVariables].join(", ")}`,
+    );
+    return;
+  }
   if (
     body &&
     !Object.keys(headers).some((key) => key.toLowerCase() === "content-type")
@@ -804,17 +1079,29 @@ async function sendRequest() {
 
   const historyEntry = {
     method,
-    url: requestUrl,
+    url: urlInput.value,
+    params: rowsFor(paramsTable),
     headers: rowsFor(headersTable),
-    body,
+    body: document.querySelector("#requestBody").value,
   };
   try {
-    const result = await window.apiClient.sendRequest({
+    logRequest(method, requestUrl, headers, body);
+    const result = await sendHttpRequest({
       method,
       url: requestUrl,
       headers,
       body,
     });
+    console.info(
+      `[API response] ${method} ${sanitizeRequestUrl(requestUrl)} — ${result.status} ${result.statusText} (${result.duration} ms)`,
+      {
+        status: result.status,
+        statusText: result.statusText,
+        duration: result.duration,
+        headers: sanitizeRequestHeaders(result.headers),
+        body: `[omitted; ${formatBytes(new TextEncoder().encode(result.body).length)}]`,
+      },
+    );
     const statusClass =
       result.status >= 200 && result.status < 400 ? "" : "bad";
     document.querySelector("#responseLabel").innerHTML =
@@ -835,6 +1122,9 @@ async function sendRequest() {
     document.querySelector("#responseFormat").textContent = "Text";
     responseHeaders.replaceChildren();
     document.querySelector("#responseHeaderCount").textContent = "0";
+    console.error(
+      `[API error] ${method} ${sanitizeRequestUrl(requestUrl)}: ${error.message || "The request could not be completed."}`,
+    );
     historyItems.unshift(historyEntry);
     historyItems = historyItems.slice(0, 40);
     writeStored(STORAGE_KEYS.history, historyItems);
@@ -953,11 +1243,117 @@ document
   .addEventListener("click", () =>
     document.querySelector('[data-tab="headers"]').click(),
   );
+document.querySelector("#environmentButton").addEventListener("click", () => {
+  const menu = document.querySelector("#environmentMenu");
+  renderEnvironmentMenu();
+  menu.classList.toggle("hidden");
+  document
+    .querySelector("#environmentButton")
+    .setAttribute("aria-expanded", String(!menu.classList.contains("hidden")));
+});
+document
+  .querySelector("#addEnvironmentVariable")
+  .addEventListener("click", () => {
+    addEnvironmentVariableRow();
+    document
+      .querySelector("#environmentVariables")
+      .lastElementChild.querySelector('[data-environment-field="key"]')
+      .focus();
+  });
+document
+  .querySelector("#environmentDialogCancel")
+  .addEventListener("click", () =>
+    document.querySelector("#environmentDialog").close(),
+  );
+document
+  .querySelector("#environmentDialogClose")
+  .addEventListener("click", () =>
+    document.querySelector("#environmentDialog").close(),
+  );
+document
+  .querySelector("#environmentForm")
+  .addEventListener("submit", (event) => {
+    event.preventDefault();
+    const name = document.querySelector("#environmentName").value.trim();
+    if (!name) {
+      showToast("Environment name cannot be empty.");
+      return;
+    }
+    if (
+      environments.some(
+        (environment) =>
+          environment.name.toLowerCase() === name.toLowerCase() &&
+          environment.name !== editingEnvironmentName,
+      )
+    ) {
+      showToast("An environment with that name already exists.");
+      return;
+    }
+
+    const variables = [];
+    const variableNames = new Set();
+    for (const row of document.querySelectorAll(
+      "#environmentVariables .environment-variable-row",
+    )) {
+      const key = row
+        .querySelector('[data-environment-field="key"]')
+        .value.trim();
+      const value = row.querySelector('[data-environment-field="value"]').value;
+      if (!key) continue;
+      if (variableNames.has(key)) {
+        showToast(`Variable "${key}" is listed more than once.`);
+        return;
+      }
+      variableNames.add(key);
+      variables.push({ key, value });
+    }
+
+    const environment = { name, variables };
+    const previousEnvironments = environments;
+    const previousActiveEnvironment = activeEnvironment;
+    if (editingEnvironmentName) {
+      environments = environments.map((item) =>
+        item.name === editingEnvironmentName ? environment : item,
+      );
+    } else {
+      environments = [...environments, environment];
+    }
+    activeEnvironment = name;
+    if (!saveEnvironments()) {
+      environments = previousEnvironments;
+      activeEnvironment = previousActiveEnvironment;
+      return;
+    }
+    document.querySelector("#activeEnvironmentName").textContent = name;
+    renderEnvironmentMenu();
+    document.querySelector("#environmentDialog").close();
+    showToast(`Environment "${name}" saved.`);
+  });
+document.querySelector("#deleteEnvironment").addEventListener("click", () => {
+  if (!editingEnvironmentName) return;
+  if (!window.confirm(`Delete "${editingEnvironmentName}"?`)) return;
+  const previousEnvironments = environments;
+  const previousActiveEnvironment = activeEnvironment;
+  environments = environments.filter(
+    (environment) => environment.name !== editingEnvironmentName,
+  );
+  if (activeEnvironment === editingEnvironmentName) activeEnvironment = "";
+  if (!saveEnvironments()) {
+    environments = previousEnvironments;
+    activeEnvironment = previousActiveEnvironment;
+    return;
+  }
+  document.querySelector("#activeEnvironmentName").textContent =
+    activeEnvironment || "No environment";
+  renderEnvironmentMenu();
+  document.querySelector("#environmentDialog").close();
+  showToast("Environment deleted.");
+});
 document.querySelector("#sendButton").addEventListener("click", sendRequest);
 urlInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") sendRequest();
 });
-urlInput.addEventListener("change", populateParamsFromUrl);
+urlInput.addEventListener("change", () => populateParamsFromUrl());
 methodSelect.addEventListener("change", () =>
   setRequestMethod(methodSelect.value),
 );
@@ -992,21 +1388,38 @@ document.querySelector("#minimizeWindow").addEventListener("click", () => {
     showToast("Could not minimize the window.");
   });
 });
+function updateMaximizeButton(isMaximized) {
+  const button = document.querySelector("#maximizeWindow");
+  button.title = isMaximized ? "Restore" : "Maximize";
+  button.setAttribute(
+    "aria-label",
+    isMaximized ? "Restore window" : "Maximize window",
+  );
+  button.querySelector(".maximize-icon").classList.toggle(
+    "restored",
+    isMaximized,
+  );
+}
+
 document
   .querySelector("#maximizeWindow")
-  .addEventListener("click", async (event) => {
+  .addEventListener("click", async () => {
     try {
-      const isMaximized = await window.apiClient.toggleMaximizeWindow();
-      event.currentTarget.title = isMaximized ? "Restore" : "Maximize";
-      event.currentTarget.setAttribute(
-        "aria-label",
-        isMaximized ? "Restore window" : "Maximize window",
-      );
+      updateMaximizeButton(await window.apiClient.toggleMaximizeWindow());
     } catch (error) {
       console.error("Unable to maximize the application window.", error);
       showToast("Could not resize the window.");
     }
   });
+if (window.apiClient?.isWindowMaximized) {
+  window.apiClient
+    .isWindowMaximized()
+    .then(updateMaximizeButton)
+    .catch((error) => {
+      console.error("Unable to read the application window state.", error);
+      showToast("Could not read the window state.");
+    });
+}
 document.querySelector("#closeWindow").addEventListener("click", () => {
   window.apiClient.closeWindow().catch((error) => {
     console.error("Unable to close the application window.", error);
@@ -1098,6 +1511,12 @@ document.querySelector("#sidebarSearch").addEventListener("input", (event) => {
     });
 });
 document.addEventListener("click", (event) => {
+  if (!event.target.closest(".environment-control")) {
+    document.querySelector("#environmentMenu").classList.add("hidden");
+    document
+      .querySelector("#environmentButton")
+      .setAttribute("aria-expanded", "false");
+  }
   if (event.target.closest(".collection-heading")) return;
   document.querySelectorAll(".collection-menu").forEach((menu) => {
     menu.classList.add("hidden");
@@ -1109,4 +1528,8 @@ document.addEventListener("click", (event) => {
 
 populateParamsFromUrl();
 setRows(headersTable, []);
+if (!getActiveEnvironment()) activeEnvironment = "";
+document.querySelector("#activeEnvironmentName").textContent =
+  activeEnvironment || "No environment";
+renderEnvironmentMenu();
 renderCollections();

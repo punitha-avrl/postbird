@@ -20,7 +20,7 @@ function restartApp() {
 
 async function downloadUpdate(data) {
   const baseUrl =
-    "https://raw.githubusercontent.com/punitha-avrl/post-bird/main/";
+    "https://raw.githubusercontent.com/punitha-avrl/postbird/refs/heads/main";
   const changedFiles = data.changedFiles || [];
   const newDependencies = data.newDependencies || {};
 
@@ -66,7 +66,10 @@ async function checkForUpdates() {
   }
   try {
     const response = await axios.get(
-      "https://raw.githubusercontent.com/punitha-avrl/post-bird/main/manifest.json",
+      "https://raw.githubusercontent.com/punitha-avrl/postbird/refs/heads/main/manifest.json",
+    );
+    console.log(
+      `Local version: ${localVersion}, Remote version: ${response.data.version}`,
     );
     const remoteVersion = response.data.version;
     if (remoteVersion !== localVersion) {
@@ -79,4 +82,4 @@ async function checkForUpdates() {
   }
 }
 
-export { checkForUpdates };
+module.exports = { checkForUpdates };

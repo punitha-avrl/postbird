@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' http: https:"
     />
     <title>Postbird — API workspace</title>
     <link rel="stylesheet" href="styles.css" />
@@ -45,7 +45,7 @@
               aria-label="Maximize window"
               title="Maximize"
             >
-              □
+              <span class="maximize-icon" aria-hidden="true"></span>
             </button>
             <button
               id="closeWindow"
@@ -140,10 +140,25 @@
               ＋
             </button>
             <div class="tab-strip-spacer"></div>
-            <button class="environment-button">
-              <span class="environment-dot"></span>No environment
-              <span class="chevron" aria-hidden="true"></span>
-            </button>
+            <div class="environment-control">
+              <button
+                id="environmentButton"
+                class="environment-button"
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded="false"
+              >
+                <span class="environment-dot"></span
+                ><span id="activeEnvironmentName">No environment</span>
+                <span class="chevron" aria-hidden="true"></span>
+              </button>
+              <div
+                id="environmentMenu"
+                class="environment-menu hidden"
+                role="menu"
+                aria-label="Environments"
+              ></div>
+            </div>
           </div>
 
           <div class="request-area">
@@ -368,6 +383,63 @@
           <div class="dialog-actions">
             <button id="appDialogCancel" type="button" class="secondary-button">Cancel</button>
             <button id="appDialogConfirm" type="submit" class="dialog-confirm">Create</button>
+          </div>
+        </form>
+      </dialog>
+      <dialog id="environmentDialog" class="app-dialog environment-dialog">
+        <form id="environmentForm" class="app-dialog-form">
+          <div class="dialog-heading">
+            <h2 id="environmentDialogTitle">Environment</h2>
+            <button
+              type="button"
+              class="dialog-close"
+              id="environmentDialogClose"
+              aria-label="Close dialog"
+            >
+              ×
+            </button>
+          </div>
+          <p class="dialog-message">
+            Use <code>{{variable}}</code> in URLs, query parameters, headers, and
+            request bodies.
+          </p>
+          <label class="dialog-field-label" for="environmentName"
+            >Environment name</label
+          >
+          <input
+            id="environmentName"
+            class="dialog-input"
+            autocomplete="off"
+            required
+          />
+          <div class="environment-variable-heading">
+            <span>Variable</span><span>Value</span><span></span>
+          </div>
+          <div id="environmentVariables" class="environment-variables"></div>
+          <button
+            id="addEnvironmentVariable"
+            type="button"
+            class="text-button environment-add-variable"
+          >
+            + Add variable
+          </button>
+          <div class="dialog-actions">
+            <button
+              id="deleteEnvironment"
+              type="button"
+              class="secondary-button danger"
+            >
+              Delete
+            </button>
+            <span class="dialog-actions-spacer"></span>
+            <button
+              id="environmentDialogCancel"
+              type="button"
+              class="secondary-button"
+            >
+              Cancel
+            </button>
+            <button type="submit" class="dialog-confirm">Save</button>
           </div>
         </form>
       </dialog>

@@ -1,6 +1,4 @@
 const { app, BrowserWindow, ipcMain } = require("electron");
-const http = require("node:http");
-const https = require("node:https");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const appDir = app.getAppPath();
@@ -40,11 +38,32 @@ const createWindow = () => {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      devTools: true,
     },
   });
 
   mainWindow = main;
+  main.webContents.on("before-input-event", (event, input) => {
+    if (
+      input.type === "keyDown" &&
+      input.shift &&
+      (input.control || input.meta) &&
+      input.key.toLowerCase() === "i"
+    ) {
+      event.preventDefault();
+      if (main.webContents.isDevToolsOpened()) {
+        main.webContents.closeDevTools();
+      } else {
+        main.webContents.openDevTools({ mode: "detach" });
+      }
+    }
+  });
   main.once("ready-to-show", () => main.show());
+  main.webContents.once("did-finish-load", () => {
+    if (!app.isPackaged) {
+      // main.webContents.openDevTools({ mode: "detach" });
+    }
+  });
   main.loadFile(path.join(appDir, "index.html"));
   main.maximize();
   checkForUpdates().catch((error) => {
@@ -61,95 +80,12 @@ setInterval(
   60 * 60 * 24 * 1000,
 ); // Check for updates every day (24 hours) in milliseconds
 
-function performRequest({ method, url: requestUrl, headers, body }) {
-  const parsedUrl = new URL(requestUrl);
-  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-    throw new Error("Only HTTP and HTTPS URLs are supported.");
-  }
-
-  const transport = parsedUrl.protocol === "https:" ? https : http;
-  const startedAt = Date.now();
-
-  return new Promise((resolve, reject) => {
-    const request = transport.request(
-      parsedUrl,
-      { method, headers, timeout: 30000 },
-      (response) => {
-        const chunks = [];
-        let totalBytes = 0;
-        const maxResponseBytes = 10 * 1024 * 1024;
-
-        response.on("data", (chunk) => {
-          totalBytes += chunk.length;
-          if (totalBytes > maxResponseBytes) {
-            request.destroy(
-              new Error("Response is larger than the 10 MB limit."),
-            );
-            return;
-          }
-          chunks.push(chunk);
-        });
-
-        response.on("end", () => {
-          resolve({
-            status: response.statusCode || 0,
-            statusText: response.statusMessage || "",
-            headers: response.headers,
-            body: Buffer.concat(chunks).toString("utf8"),
-            duration: Date.now() - startedAt,
-          });
-        });
-      },
-    );
-
-    request.on("timeout", () =>
-      request.destroy(new Error("Request timed out after 30 seconds.")),
-    );
-    request.on("error", reject);
-    if (body && !["GET", "HEAD"].includes(method)) request.write(body);
-    request.end();
-  });
-}
-
 function isApplicationFrame(event) {
   return (
     event.senderFrame.url ===
     pathToFileURL(path.join(appDir, "index.html")).href
   );
 }
-
-ipcMain.handle("http:request", (event, request) => {
-  if (!isApplicationFrame(event)) {
-    throw new Error("Requests can only be sent from the application window.");
-  }
-  if (
-    !request ||
-    typeof request !== "object" ||
-    typeof request.url !== "string"
-  ) {
-    throw new Error("Provide a request URL.");
-  }
-  if (request.url.length > 8192) {
-    throw new Error("The request URL is too long.");
-  }
-
-  const method = String(request.method || "").toUpperCase();
-  if (
-    !["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].includes(
-      method,
-    )
-  ) {
-    throw new Error("Choose a supported HTTP method.");
-  }
-  if (
-    request.headers &&
-    (typeof request.headers !== "object" || Array.isArray(request.headers))
-  ) {
-    throw new Error("Request headers must be a key/value object.");
-  }
-
-  return performRequest({ ...request, method });
-});
 
 for (const [channel, action] of [
   ["window:minimize", (window) => window.minimize()],
@@ -172,6 +108,17 @@ for (const [channel, action] of [
     return window.isMaximized();
   });
 }
+
+ipcMain.handle("window:is-maximized", (event) => {
+  if (!isApplicationFrame(event)) {
+    throw new Error(
+      "Window state is only available to the application window.",
+    );
+  }
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window) throw new Error("The application window is no longer available.");
+  return window.isMaximized();
+});
 
 app.whenReady().then(() => {
   createWindow();
