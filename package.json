@@ -1,14 +1,14 @@
 {
-  "name": "postman-clone",
+  "name": "post-bird",
   "version": "1.0.0",
   "description": "To test Api",
-  "homepage": "https://github.com/punitha-avrl/postman-clone#readme",
+  "homepage": "https://github.com/punitha-avrl/post-bird#readme",
   "bugs": {
-    "url": "https://github.com/punitha-avrl/postman-clone/issues"
+    "url": "https://github.com/punitha-avrl/post-bird/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/punitha-avrl/postman-clone.git"
+    "url": "git+https://github.com/punitha-avrl/post-bird.git"
   },
   "license": "ISC",
   "author": "Punitha Shunmnugam",
@@ -20,5 +20,28 @@
   },
   "devDependencies": {
     "electron": "^45.2.2"
+  },
+  "dependencies": {
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "post-bird",
+    "productName": "post Bird",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
