@@ -152,6 +152,18 @@ button { color: inherit; cursor: pointer; }
 .response-title { font-weight: 600; font-size: 11px; }
 .response-label { margin-left: 8px; color: #9298a0; font-weight: 400; font-size: 9px; }
 .response-meta { display: flex; gap: 13px; align-items: center; color: #717780; font: 9px var(--mono); }
+.response-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
+.response-scenario-save { white-space: nowrap; }
+.response-scenario-save:disabled { opacity: .55; cursor: not-allowed; }
+.collection-request-entry { padding-bottom: 4px; }
+.request-scenarios { margin: 0 0 2px 29px; }
+.request-scenarios-toggle { display: flex; align-items: center; gap: 7px; width: 100%; min-height: 25px; padding: 2px 6px; border: 0; border-radius: 4px; background: transparent; color: #777e86; text-align: left; font-size: 10px; }
+.request-scenarios-toggle:hover { background: #f0f1f3; color: #30353a; }
+.scenario-chevron { display: inline-block; width: 6px; height: 6px; flex: 0 0 6px; margin: -2px 1px 0; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); transition: transform .15s ease; }
+.request-scenarios.collapsed .scenario-chevron { transform: rotate(-45deg); }
+.request-scenario-list { display: grid; gap: 1px; padding: 0 0 2px 12px; }
+.sidebar-scenario-item { width: 100%; min-height: 25px; padding: 4px 7px; overflow: hidden; border: 0; border-radius: 4px; background: transparent; color: #656c75; text-align: left; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.sidebar-scenario-item:hover, .sidebar-scenario-item.selected { background: #f0f1f3; color: #292e34; }
 .status-pill { color: #14825b; font-family: "DM Sans", sans-serif; font-weight: 700; }
 .status-pill.bad { color: #d54d52; }
 .response-empty { min-height: 203px; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #464c54; }
@@ -305,6 +317,8 @@ body[data-theme="dark"] .editor-row input::placeholder { color: #89919b; }
 body[data-theme="dark"] .sidebar-request,
 body[data-theme="dark"] .sidebar-history-item,
 body[data-theme="dark"] .collection-toggle,
+body[data-theme="dark"] .request-scenarios-toggle,
+body[data-theme="dark"] .sidebar-scenario-item,
 body[data-theme="dark"] .collection-menu button,
 body[data-theme="dark"] .environment-menu button,
 body[data-theme="dark"] .secondary-button,
@@ -315,6 +329,9 @@ body[data-theme="dark"] .sidebar-request:hover,
 body[data-theme="dark"] .sidebar-request.selected,
 body[data-theme="dark"] .sidebar-history-item:hover,
 body[data-theme="dark"] .collection-toggle:hover,
+body[data-theme="dark"] .request-scenarios-toggle:hover,
+body[data-theme="dark"] .sidebar-scenario-item:hover,
+body[data-theme="dark"] .sidebar-scenario-item.selected,
 body[data-theme="dark"] .request-title:hover,
 body[data-theme="dark"] .collection-menu button:hover,
 body[data-theme="dark"] .environment-menu button:hover,

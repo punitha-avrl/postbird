@@ -21,6 +21,9 @@ const STORAGE_KEYS = {
 
 let activeCollection = "Getting started";
 let activeSavedRequest = null;
+let currentResponseResult = null;
+let currentResponseRequest = null;
+let activeScenarioId = "";
 let toastTimer;
 let dialogResolve;
 let editingEnvironmentName = null;
@@ -37,6 +40,9 @@ let activeEnvironment =
   localStorage.getItem(STORAGE_KEYS.activeEnvironment) || "";
 let collapsedCollections = new Set(
   readStored("postbird.collapsedCollections", []),
+);
+let collapsedScenarioGroups = new Set(
+  readStored("postbird.collapsedScenarioGroups", []),
 );
 
 function reportAppError(context, error) {
@@ -519,28 +525,215 @@ function setRequestTitle(name) {
   document.querySelector(".request-tab span:last-of-type").textContent = name;
 }
 
-function setActiveRequest(name, request) {
-  activeSavedRequest = savedRequests.includes(request) ? request : null;
-  setRequestTitle(name);
+function applyRequestInputs(request) {
   urlInput.value = request.url;
   setRequestMethod(request.method || "GET");
   setRows(headersTable, request.headers || []);
   document.querySelector("#requestBody").value = request.body || "";
-  document.querySelectorAll('input[name="bodyType"]')[0].checked =
-    !request.body;
-  document.querySelectorAll('input[name="bodyType"]')[1].checked = Boolean(
-    request.body,
-  );
+  const savedBodyType = request.bodyType || (request.body ? "raw" : "none");
+  document.querySelectorAll('input[name="bodyType"]').forEach((input) => {
+    input.checked = input.nextSibling.textContent.trim() === savedBodyType;
+  });
   if (Array.isArray(request.params)) {
     setRows(paramsTable, request.params);
     updateUrlFromParams();
   } else {
     populateParamsFromUrl(true);
   }
+}
+
+function getRequestSnapshot() {
+  return {
+    method: methodSelect.value,
+    url: urlInput.value,
+    params: rowsFor(paramsTable),
+    headers: rowsFor(headersTable),
+    body: document.querySelector("#requestBody").value,
+    bodyType:
+      document
+        .querySelector('input[name="bodyType"]:checked')
+        ?.nextSibling?.textContent.trim() || "none",
+    environment: activeEnvironment,
+  };
+}
+
+function copyRequestSnapshot(request) {
+  return {
+    ...request,
+    params: (request.params || []).map((param) => ({ ...param })),
+    headers: (request.headers || []).map((header) => ({ ...header })),
+  };
+}
+
+function getSavedScenarios(request = activeSavedRequest) {
+  return Array.isArray(request?.scenarios)
+    ? request.scenarios.filter(
+        (scenario) =>
+          scenario &&
+          typeof scenario.id === "string" &&
+          typeof scenario.name === "string" &&
+          scenario.request &&
+          scenario.response,
+      )
+    : [];
+}
+
+function updateScenarioControls() {
+  document.querySelector("#saveResponseScenario").disabled =
+    !currentResponseResult || !currentResponseRequest;
+  updateActiveScenarioItems();
+}
+
+function updateActiveScenarioItems() {
+  document.querySelectorAll(".sidebar-scenario-item").forEach((button) => {
+    const isActiveScenario =
+      activeSavedRequest &&
+      button.dataset.collection === activeSavedRequest.collection &&
+      button.dataset.requestName === activeSavedRequest.name &&
+      button.dataset.scenarioId === activeScenarioId;
+    button.classList.toggle("selected", Boolean(isActiveScenario));
+  });
+}
+
+function scenarioGroupKey(collectionName, requestName) {
+  return JSON.stringify([collectionName, requestName]);
+}
+
+function resetResponseView() {
+  currentResponseResult = null;
+  currentResponseRequest = null;
+  activeScenarioId = "";
   responseEmpty.classList.remove("hidden");
   responseContent.classList.add("hidden");
   document.querySelector("#responseLabel").textContent = "Ready to send";
   document.querySelector("#responseMeta").textContent = "";
+  updateScenarioControls();
+}
+
+function setActiveRequest(name, request) {
+  activeSavedRequest = savedRequests.includes(request) ? request : null;
+  setRequestTitle(name);
+  applyRequestInputs(request);
+  resetResponseView();
+}
+
+function showResponseResult(result) {
+  currentResponseResult = {
+    status: result.status,
+    statusText: result.statusText,
+    headers: { ...result.headers },
+    body: result.body,
+    duration: result.duration,
+  };
+  const statusClass = result.status >= 200 && result.status < 400 ? "" : "bad";
+  document.querySelector("#responseLabel").innerHTML =
+    `<span class="status-pill ${statusClass}">${result.status} ${escapeHtml(result.statusText)}</span>`;
+  const size = new TextEncoder().encode(result.body).length;
+  const statusIndicator =
+    result.status >= 200 && result.status < 400 ? "OK" : "Error";
+  document.querySelector("#responseMeta").innerHTML =
+    `<span class="status-pill ${statusClass}">● ${statusIndicator}</span><span>${result.duration} ms</span><span>${formatBytes(size)}</span>`;
+  responseEmpty.classList.add("hidden");
+  responseContent.classList.remove("hidden");
+  displayResponse(result);
+  updateScenarioControls();
+}
+
+function showSavedScenario(scenario) {
+  const request = copyRequestSnapshot(scenario.request);
+  applyRequestInputs(request);
+  if (typeof request.environment === "string") {
+    const environmentExists =
+      request.environment === "" ||
+      environments.some(
+        (environment) => environment.name === request.environment,
+      );
+    selectEnvironment(environmentExists ? request.environment : "");
+    if (!environmentExists) {
+      showToast(`Environment "${request.environment}" no longer exists.`);
+    }
+  }
+  activeScenarioId = scenario.id;
+  currentResponseRequest = request;
+  const response = scenario.response;
+  currentResponseResult = {
+    status: response.status,
+    statusText: response.statusText,
+    headers: { ...response.headers },
+    body: response.body,
+    duration: response.duration,
+  };
+  responseEmpty.classList.add("hidden");
+  responseContent.classList.remove("hidden");
+  showResponseResult(currentResponseResult);
+}
+
+async function saveResponseScenario() {
+  if (!currentResponseResult) return;
+  if (!activeSavedRequest || !savedRequests.includes(activeSavedRequest)) {
+    showToast("Save this request before adding a response scenario.");
+    return;
+  }
+
+  const scenarios = getSavedScenarios();
+  const result = await openAppDialog({
+    title: "Save response scenario",
+    label: "Scenario name",
+    value: `Scenario ${scenarios.length + 1}`,
+    confirmLabel: "Save",
+  });
+  if (!result?.confirmed) return;
+
+  const name = result.value.trim();
+  if (!name) {
+    showToast("Scenario name cannot be empty.");
+    return;
+  }
+  if (
+    scenarios.some(
+      (scenario) => scenario.name.toLowerCase() === name.toLowerCase(),
+    )
+  ) {
+    showToast("A scenario with that name already exists for this request.");
+    return;
+  }
+
+  const existingScenarios = Array.isArray(activeSavedRequest.scenarios)
+    ? activeSavedRequest.scenarios
+    : [];
+  const scenario = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    name,
+    savedAt: new Date().toISOString(),
+    request: copyRequestSnapshot(currentResponseRequest),
+    response: {
+      ...currentResponseResult,
+      headers: { ...currentResponseResult.headers },
+    },
+  };
+  const updatedRequest = {
+    ...activeSavedRequest,
+    scenarios: [...existingScenarios, scenario],
+  };
+  const updatedRequests = savedRequests.map((request) =>
+    request === activeSavedRequest ? updatedRequest : request,
+  );
+  try {
+    localStorage.setItem(
+      STORAGE_KEYS.requests,
+      JSON.stringify(updatedRequests),
+    );
+  } catch (error) {
+    reportAppError("Unable to save response scenario", error);
+    showToast("Could not save response scenario locally.");
+    return;
+  }
+
+  activeSavedRequest.scenarios = updatedRequest.scenarios;
+  activeScenarioId = scenario.id;
+  updateScenarioControls();
+  renderCollections();
+  showToast(`Saved scenario "${name}".`);
 }
 
 function renderCollections() {
@@ -629,6 +822,8 @@ function renderCollections() {
     requestList.classList.toggle("hidden", collapsed);
     const requests = getCollectionRequests(collectionName);
     for (const request of requests) {
+      const requestEntry = document.createElement("div");
+      requestEntry.className = "collection-request-entry";
       const button = document.createElement("button");
       button.className = "sidebar-request";
       const method = document.createElement("span");
@@ -645,7 +840,74 @@ function renderCollections() {
           .forEach((item) => item.classList.remove("selected"));
         button.classList.add("selected");
       });
-      requestList.append(button);
+      requestEntry.append(button);
+
+      const scenarios = getSavedScenarios(request);
+      if (scenarios.length) {
+        const groupKey = scenarioGroupKey(collectionName, request.name);
+        const groupCollapsed = collapsedScenarioGroups.has(groupKey);
+        const scenarioGroup = document.createElement("div");
+        scenarioGroup.className = `request-scenarios${groupCollapsed ? " collapsed" : ""}`;
+        const scenarioToggle = document.createElement("button");
+        scenarioToggle.type = "button";
+        scenarioToggle.className = "request-scenarios-toggle";
+        scenarioToggle.setAttribute("aria-expanded", String(!groupCollapsed));
+        scenarioToggle.setAttribute(
+          "aria-label",
+          `${groupCollapsed ? "Expand" : "Collapse"} scenarios for ${request.name}`,
+        );
+        const chevron = document.createElement("span");
+        chevron.className = "scenario-chevron";
+        chevron.setAttribute("aria-hidden", "true");
+        const label = document.createElement("span");
+        label.textContent = `Scenarios (${scenarios.length})`;
+        scenarioToggle.append(chevron, label);
+        const scenarioList = document.createElement("div");
+        scenarioList.className = "request-scenario-list";
+        scenarioList.classList.toggle("hidden", groupCollapsed);
+        for (const scenario of scenarios) {
+          const scenarioButton = document.createElement("button");
+          scenarioButton.type = "button";
+          scenarioButton.className = "sidebar-scenario-item";
+          scenarioButton.textContent = scenario.name;
+          scenarioButton.dataset.collection = collectionName;
+          scenarioButton.dataset.requestName = request.name;
+          scenarioButton.dataset.scenarioId = scenario.id;
+          scenarioButton.classList.toggle(
+            "selected",
+            request === activeSavedRequest && scenario.id === activeScenarioId,
+          );
+          scenarioButton.addEventListener("click", () => {
+            activeCollection = collectionName;
+            setActiveRequest(request.name, request);
+            document
+              .querySelectorAll(".sidebar-request")
+              .forEach((item) => item.classList.remove("selected"));
+            button.classList.add("selected");
+            activeScenarioId = scenario.id;
+            showSavedScenario(scenario);
+          });
+          scenarioList.append(scenarioButton);
+        }
+        scenarioToggle.addEventListener("click", () => {
+          const shouldCollapse = !scenarioList.classList.contains("hidden");
+          scenarioList.classList.toggle("hidden", shouldCollapse);
+          scenarioGroup.classList.toggle("collapsed", shouldCollapse);
+          scenarioToggle.setAttribute("aria-expanded", String(!shouldCollapse));
+          scenarioToggle.setAttribute(
+            "aria-label",
+            `${shouldCollapse ? "Expand" : "Collapse"} scenarios for ${request.name}`,
+          );
+          if (shouldCollapse) collapsedScenarioGroups.add(groupKey);
+          else collapsedScenarioGroups.delete(groupKey);
+          writeStored("postbird.collapsedScenarioGroups", [
+            ...collapsedScenarioGroups,
+          ]);
+        });
+        scenarioGroup.append(scenarioToggle, scenarioList);
+        requestEntry.append(scenarioGroup);
+      }
+      requestList.append(requestEntry);
     }
     if (!requests.length) {
       const empty = document.createElement("p");
@@ -778,6 +1040,8 @@ async function handleCollectionAction(action, collectionName) {
     );
     if (activeSavedRequest?.collection === collectionName) {
       activeSavedRequest = null;
+      activeScenarioId = "";
+      updateScenarioControls();
     }
     collapsedCollections.delete(collectionName);
     if (activeCollection === collectionName) {
@@ -1217,6 +1481,10 @@ async function sendRequest() {
   sendButton.querySelector("span").textContent = "Sending";
   document.querySelector("#responseLabel").textContent = "Sending request...";
   document.querySelector("#responseMeta").textContent = "";
+  currentResponseResult = null;
+  const requestSnapshot = getRequestSnapshot();
+  activeScenarioId = "";
+  updateScenarioControls();
   responseEmpty.classList.add("hidden");
   responseContent.classList.remove("hidden");
   responseBody.textContent = "";
@@ -1227,6 +1495,10 @@ async function sendRequest() {
     params: rowsFor(paramsTable),
     headers: rowsFor(headersTable),
     body: document.querySelector("#requestBody").value,
+    bodyType:
+      document
+        .querySelector('input[name="bodyType"]:checked')
+        ?.nextSibling?.textContent.trim() || "none",
   };
   try {
     logRequest(method, requestUrl, headers, body);
@@ -1246,18 +1518,16 @@ async function sendRequest() {
         body: `[omitted; ${formatBytes(new TextEncoder().encode(result.body).length)}]`,
       },
     );
-    const statusClass =
-      result.status >= 200 && result.status < 400 ? "" : "bad";
-    document.querySelector("#responseLabel").innerHTML =
-      `<span class="status-pill ${statusClass}">${result.status} ${escapeHtml(result.statusText)}</span>`;
-    const size = new TextEncoder().encode(result.body).length;
-    document.querySelector("#responseMeta").innerHTML =
-      `<span class="status-pill ${statusClass}">${result.status >= 200 && result.status < 400 ? "●" : "●"} ${result.status >= 200 && result.status < 400 ? "OK" : "Error"}</span><span>${result.duration} ms</span><span>${formatBytes(size)}</span>`;
-    displayResponse(result);
+    currentResponseRequest = requestSnapshot;
+    showResponseResult(result);
     historyItems.unshift(historyEntry);
     historyItems = historyItems.slice(0, 40);
     writeStored(STORAGE_KEYS.history, historyItems);
   } catch (error) {
+    currentResponseResult = null;
+    currentResponseRequest = null;
+    activeScenarioId = "";
+    updateScenarioControls();
     document.querySelector("#responseLabel").textContent = "Request failed";
     document.querySelector("#responseMeta").innerHTML =
       '<span class="status-pill bad">● Error</span>';
@@ -1360,6 +1630,9 @@ document.querySelectorAll(".response-tab").forEach((tab) => {
   });
 });
 
+document
+  .querySelector("#saveResponseScenario")
+  .addEventListener("click", saveResponseScenario);
 document.querySelectorAll(".sidebar-tab").forEach((tab) => {
   tab.addEventListener("click", () => {
     const view = tab.dataset.sidebarView;
@@ -1511,10 +1784,7 @@ document.querySelector("#deleteEnvironment").addEventListener("click", () => {
 });
 document.querySelector("#sendButton").addEventListener("click", sendRequest);
 document.querySelector("#themeToggle").addEventListener("click", () => {
-  applyTheme(
-    document.body.dataset.theme === "dark" ? "light" : "dark",
-    true,
-  );
+  applyTheme(document.body.dataset.theme === "dark" ? "light" : "dark", true);
 });
 window.apiClient
   .getAppVersion()
@@ -1655,6 +1925,10 @@ document.querySelector("#saveRequest").addEventListener("click", async () => {
     params: rowsFor(paramsTable),
     headers: rowsFor(headersTable),
     body: document.querySelector("#requestBody").value,
+    bodyType:
+      document
+        .querySelector('input[name="bodyType"]:checked')
+        ?.nextSibling?.textContent.trim() || "none",
   };
   if (activeSavedRequest) {
     savedRequests = savedRequests.map((item) =>
@@ -1672,6 +1946,7 @@ document.querySelector("#saveRequest").addEventListener("click", async () => {
   activeSavedRequest = request;
   setRequestTitle(name);
   writeStored(STORAGE_KEYS.requests, savedRequests);
+  updateScenarioControls();
   document.querySelector('[data-sidebar-view="collections"]').click();
 });
 appDialogForm.addEventListener("submit", (event) => {
