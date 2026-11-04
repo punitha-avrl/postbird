@@ -88,6 +88,9 @@ const createWindow = () => {
   });
   main.once("ready-to-show", () => main.show());
   main.webContents.once("did-finish-load", () => {
+    writeLog("info", "application", "Application window loaded.", {
+      version: app.getVersion(),
+    });
     if (!app.isPackaged) {
       // main.webContents.openDevTools({ mode: "detach" });
     }
