@@ -28,8 +28,13 @@
           <button class="icon-button" aria-label="Search" title="Search">
             ⌕
           </button>
-          <button class="icon-button" aria-label="Settings" title="Settings">
-            ⚙
+          <button
+            id="themeToggle"
+            class="icon-button"
+            aria-label="Switch to dark mode"
+            title="Switch to dark mode"
+          >
+            ☾
           </button>
           <span class="avatar">PS</span>
           <div class="window-controls">
@@ -68,6 +73,7 @@
             <button class="sidebar-tab" data-sidebar-view="history">
               History
             </button>
+            <button class="sidebar-tab" data-sidebar-view="logs">Logs</button>
           </div>
           <div class="sidebar-tools">
             <div class="sidebar-search">
@@ -93,6 +99,14 @@
               aria-label="Import a Postman collection"
             >
               ⇧
+            </button>
+            <button
+              id="refreshLogs"
+              class="icon-button small hidden"
+              title="Refresh logs"
+              aria-label="Refresh logs"
+            >
+              ↻
             </button>
             <input id="collectionFile" type="file" accept=".json,application/json" hidden />
           </div>
@@ -127,6 +141,7 @@
           <div class="sidebar-footer">
             <span class="online-dot"></span>
             <span>All changes saved locally</span>
+            <span id="appVersion" class="app-version" aria-label="App version"></span>
           </div>
         </aside>
 

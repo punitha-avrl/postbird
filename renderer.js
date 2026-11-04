@@ -16,6 +16,7 @@ const STORAGE_KEYS = {
   collections: "postbird.collections",
   environments: "postbird.environments",
   activeEnvironment: "postbird.activeEnvironment",
+  theme: "postbird.theme",
 };
 
 let activeCollection = "Getting started";
@@ -38,12 +39,54 @@ let collapsedCollections = new Set(
   readStored("postbird.collapsedCollections", []),
 );
 
+function reportAppError(context, error) {
+  const message = (
+    error instanceof Error ? error.message : String(error)
+  ).slice(0, 10000);
+  const stack = (error instanceof Error ? error.stack || "" : "").slice(
+    0,
+    20000,
+  );
+  const errorContext = context.slice(0, 200);
+  console.error(errorContext, error);
+  const logging = window.apiClient?.logAppError?.(errorContext, message, stack);
+  logging?.catch((loggingError) => {
+    console.error("Unable to persist application error.", loggingError);
+  });
+}
+
+function applyTheme(theme, persist = false) {
+  const activeTheme = theme === "dark" ? "dark" : "light";
+  document.body.dataset.theme = activeTheme;
+  const button = document.querySelector("#themeToggle");
+  const nextTheme = activeTheme === "dark" ? "light" : "dark";
+  button.textContent = activeTheme === "dark" ? "☀" : "☾";
+  button.title = `Switch to ${nextTheme} mode`;
+  button.setAttribute("aria-label", `Switch to ${nextTheme} mode`);
+  if (persist) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.theme, activeTheme);
+    } catch (error) {
+      reportAppError("Unable to save theme preference", error);
+      showToast("Could not save theme preference.");
+    }
+  }
+}
+
+let savedTheme = "light";
+try {
+  savedTheme = localStorage.getItem(STORAGE_KEYS.theme) || "light";
+} catch (error) {
+  reportAppError("Unable to read theme preference", error);
+}
+applyTheme(savedTheme);
+
 function readStored(key, fallback) {
   try {
     const stored = JSON.parse(localStorage.getItem(key));
     return Array.isArray(stored) ? stored : fallback;
   } catch (error) {
-    console.error(`Unable to read ${key} from local storage.`, error);
+    reportAppError(`Unable to read ${key} from local storage`, error);
     return fallback;
   }
 }
@@ -52,7 +95,7 @@ function writeStored(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (error) {
-    console.error(`Unable to save ${key} to local storage.`, error);
+    reportAppError(`Unable to save ${key} to local storage`, error);
     showToast("Could not save to local storage.");
   }
 }
@@ -76,7 +119,7 @@ function saveEnvironments() {
     }
     return true;
   } catch (error) {
-    console.error("Unable to save environments.", error);
+    reportAppError("Unable to save environments", error);
     showToast("Could not save environments locally.");
     return false;
   }
@@ -776,7 +819,7 @@ function exportCollection(collectionName) {
         disabled: param.enabled === false || undefined,
       }));
     } catch (error) {
-      console.error(`Cannot export invalid URL in "${request.name}".`, error);
+      reportAppError(`Cannot export invalid URL in "${request.name}"`, error);
     }
 
     const item = {
@@ -844,6 +887,93 @@ function renderHistory() {
       document.querySelector("#sidebarSearch").placeholder = "Filter history";
     });
     content.append(button);
+  }
+}
+
+async function renderAppLogs() {
+  const content = document.querySelector("#sidebarContent");
+  const logsTab = document.querySelector('[data-sidebar-view="logs"]');
+  content.replaceChildren();
+  try {
+    const result = await window.apiClient.getAppLogs(500);
+    if (!logsTab.classList.contains("active")) return;
+
+    const caption = document.createElement("div");
+    caption.className = "app-log-caption";
+    caption.textContent = `SQLite log file: ${result.databasePath}`;
+    content.append(caption);
+
+    const table = document.createElement("div");
+    table.className = "app-log-table";
+    table.setAttribute("role", "table");
+    table.setAttribute("aria-label", "Application logs");
+    for (const [label, className] of [
+      ["Time", "app-log-time"],
+      ["Level", "app-log-level"],
+      ["Message", "app-log-message"],
+    ]) {
+      const heading = document.createElement("span");
+      heading.className = className;
+      heading.textContent = label;
+      heading.setAttribute("role", "columnheader");
+      table.append(heading);
+    }
+    table.classList.add("app-log-header");
+
+    for (const record of result.records) {
+      const row = document.createElement("div");
+      row.className = `app-log-row ${record.level}`;
+      row.setAttribute("role", "row");
+      row.title = record.timestamp;
+
+      const time = document.createElement("span");
+      time.className = "app-log-time";
+      time.textContent = new Date(record.timestamp).toLocaleTimeString();
+
+      const level = document.createElement("span");
+      level.className = "app-log-level";
+      level.textContent = record.level;
+
+      const message = document.createElement("span");
+      message.className = "app-log-message";
+      message.textContent = `[${record.category}] ${record.message}`;
+      row.append(time, level, message);
+
+      if (record.details && record.details !== "{}") {
+        const details = document.createElement("details");
+        details.className = "app-log-details";
+        const summary = document.createElement("summary");
+        summary.textContent = "Details";
+        const value = document.createElement("pre");
+        try {
+          value.textContent = JSON.stringify(
+            JSON.parse(record.details),
+            null,
+            2,
+          );
+        } catch {
+          value.textContent = record.details;
+        }
+        details.append(summary, value);
+        row.append(details);
+      }
+      table.append(row);
+    }
+
+    if (!result.records.length) {
+      const empty = document.createElement("p");
+      empty.className = "collection-empty";
+      empty.textContent = "No application logs yet.";
+      table.append(empty);
+    }
+    content.append(table);
+  } catch (error) {
+    reportAppError("Unable to read application logs", error);
+    if (!logsTab.classList.contains("active")) return;
+    const message = document.createElement("p");
+    message.className = "collection-empty";
+    message.textContent = "Application logs could not be loaded.";
+    content.append(message);
   }
 }
 
@@ -1029,7 +1159,7 @@ async function readCollectionFile(file) {
     const contents = await file.text();
     importPostmanCollection(JSON.parse(contents));
   } catch (error) {
-    console.error("Unable to import the selected collection.", error);
+    reportAppError("Unable to import the selected collection", error);
     showToast(
       error instanceof SyntaxError
         ? "The collection file contains invalid JSON."
@@ -1136,8 +1266,9 @@ async function sendRequest() {
     document.querySelector("#responseFormat").textContent = "Text";
     responseHeaders.replaceChildren();
     document.querySelector("#responseHeaderCount").textContent = "0";
-    console.error(
-      `[API error] ${method} ${sanitizeRequestUrl(requestUrl)}: ${error.message || "The request could not be completed."}`,
+    reportAppError(
+      `API request failed: ${method} ${sanitizeRequestUrl(requestUrl)}`,
+      error,
     );
     historyItems.unshift(historyEntry);
     historyItems = historyItems.slice(0, 40);
@@ -1231,14 +1362,29 @@ document.querySelectorAll(".response-tab").forEach((tab) => {
 
 document.querySelectorAll(".sidebar-tab").forEach((tab) => {
   tab.addEventListener("click", () => {
+    const view = tab.dataset.sidebarView;
     document
       .querySelectorAll(".sidebar-tab")
       .forEach((item) => item.classList.toggle("active", item === tab));
-    document.querySelector("#sidebarSearch").placeholder =
-      tab.dataset.sidebarView === "history"
+    const search = document.querySelector("#sidebarSearch");
+    search.value = "";
+    search.placeholder =
+      view === "history"
         ? "Filter history"
-        : "Filter collections";
-    if (tab.dataset.sidebarView === "history") renderHistory();
+        : view === "logs"
+          ? "Filter logs"
+          : "Filter collections";
+    document
+      .querySelector("#newCollection")
+      .classList.toggle("hidden", view !== "collections");
+    document
+      .querySelector("#importCollection")
+      .classList.toggle("hidden", view !== "collections");
+    document
+      .querySelector("#refreshLogs")
+      .classList.toggle("hidden", view !== "logs");
+    if (view === "history") renderHistory();
+    else if (view === "logs") renderAppLogs();
     else renderCollections();
   });
 });
@@ -1364,6 +1510,21 @@ document.querySelector("#deleteEnvironment").addEventListener("click", () => {
   showToast("Environment deleted.");
 });
 document.querySelector("#sendButton").addEventListener("click", sendRequest);
+document.querySelector("#themeToggle").addEventListener("click", () => {
+  applyTheme(
+    document.body.dataset.theme === "dark" ? "light" : "dark",
+    true,
+  );
+});
+window.apiClient
+  .getAppVersion()
+  .then((version) => {
+    document.querySelector("#appVersion").textContent = `v${version}`;
+  })
+  .catch((error) => {
+    reportAppError("Unable to read application version", error);
+    document.querySelector("#appVersion").textContent = "Version unavailable";
+  });
 urlInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") sendRequest();
 });
@@ -1398,7 +1559,7 @@ document
   });
 document.querySelector("#minimizeWindow").addEventListener("click", () => {
   window.apiClient.minimizeWindow().catch((error) => {
-    console.error("Unable to minimize the application window.", error);
+    reportAppError("Unable to minimize the application window", error);
     showToast("Could not minimize the window.");
   });
 });
@@ -1420,7 +1581,7 @@ document
     try {
       updateMaximizeButton(await window.apiClient.toggleMaximizeWindow());
     } catch (error) {
-      console.error("Unable to maximize the application window.", error);
+      reportAppError("Unable to maximize the application window", error);
       showToast("Could not resize the window.");
     }
   });
@@ -1429,13 +1590,13 @@ if (window.apiClient?.isWindowMaximized) {
     .isWindowMaximized()
     .then(updateMaximizeButton)
     .catch((error) => {
-      console.error("Unable to read the application window state.", error);
+      reportAppError("Unable to read the application window state", error);
       showToast("Could not read the window state.");
     });
 }
 document.querySelector("#closeWindow").addEventListener("click", () => {
   window.apiClient.closeWindow().catch((error) => {
-    console.error("Unable to close the application window.", error);
+    reportAppError("Unable to close the application window", error);
     showToast("Could not close the window.");
   });
 });
@@ -1542,7 +1703,7 @@ document.querySelector("#copyResponse").addEventListener("click", async () => {
     await navigator.clipboard.writeText(responseBody.textContent);
     showToast("Response copied.");
   } catch (error) {
-    console.error("Unable to copy the response.", error);
+    reportAppError("Unable to copy the response", error);
     showToast("Could not copy the response.");
   }
 });
@@ -1553,7 +1714,7 @@ document.querySelector("#sidebarSearch").addEventListener("input", (event) => {
   const query = event.target.value.toLowerCase();
   document
     .querySelectorAll(
-      ".sidebar-request, .sidebar-history-item, .collection-heading",
+      ".sidebar-request, .sidebar-history-item, .collection-heading, .app-log-row",
     )
     .forEach((item) => {
       item.classList.toggle(
@@ -1561,6 +1722,13 @@ document.querySelector("#sidebarSearch").addEventListener("input", (event) => {
         !item.textContent.toLowerCase().includes(query),
       );
     });
+});
+document.querySelector("#refreshLogs").addEventListener("click", renderAppLogs);
+window.addEventListener("error", (event) => {
+  reportAppError("Uncaught renderer error", event.error || event.message);
+});
+window.addEventListener("unhandledrejection", (event) => {
+  reportAppError("Unhandled renderer promise rejection", event.reason);
 });
 document.addEventListener("click", (event) => {
   if (!event.target.closest(".environment-control")) {
