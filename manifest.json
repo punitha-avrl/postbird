@@ -1,6 +1,14 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "name": "post-bird",
-  "changedFiles": ["package.json", "package-lock.json", "main.js"],
+  "changedFiles": [
+    "package.json",
+    "package-lock.json",
+    "main.js",
+    "renderer.js",
+    "updater.js",
+    "index.html",
+    "manifest.json"
+  ],
   "newDependencies": {}
 }

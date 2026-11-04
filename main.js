@@ -116,7 +116,8 @@ ipcMain.handle("window:is-maximized", (event) => {
     );
   }
   const window = BrowserWindow.fromWebContents(event.sender);
-  if (!window) throw new Error("The application window is no longer available.");
+  if (!window)
+    throw new Error("The application window is no longer available.");
   return window.isMaximized();
 });
 

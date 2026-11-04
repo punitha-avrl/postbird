@@ -19,6 +19,7 @@ const STORAGE_KEYS = {
 };
 
 let activeCollection = "Getting started";
+let activeSavedRequest = null;
 let toastTimer;
 let dialogResolve;
 let editingEnvironmentName = null;
@@ -468,9 +469,16 @@ function setRequestMethod(method) {
     `method-dot ${method.toLowerCase()}`;
 }
 
-function setActiveRequest(name, request) {
-  document.querySelector(".breadcrumbs strong").textContent = name;
+function setRequestTitle(name) {
+  const title = document.querySelector("#requestTitle");
+  title.value = name;
+  title.dataset.initialValue = name;
   document.querySelector(".request-tab span:last-of-type").textContent = name;
+}
+
+function setActiveRequest(name, request) {
+  activeSavedRequest = savedRequests.includes(request) ? request : null;
+  setRequestTitle(name);
   urlInput.value = request.url;
   setRequestMethod(request.method || "GET");
   setRows(headersTable, request.headers || []);
@@ -688,11 +696,14 @@ async function handleCollectionAction(action, collectionName) {
     collections = collections.map((name) =>
       name === collectionName ? nextName : name,
     );
-    savedRequests = savedRequests.map((request) =>
-      request.collection === collectionName
-        ? { ...request, collection: nextName }
-        : request,
-    );
+    savedRequests = savedRequests.map((request) => {
+      if (request.collection !== collectionName) return request;
+      const renamedRequest = { ...request, collection: nextName };
+      if (request === activeSavedRequest) {
+        activeSavedRequest = renamedRequest;
+      }
+      return renamedRequest;
+    });
     if (activeCollection === collectionName) activeCollection = nextName;
     if (collapsedCollections.delete(collectionName)) {
       collapsedCollections.add(nextName);
@@ -722,6 +733,9 @@ async function handleCollectionAction(action, collectionName) {
     savedRequests = savedRequests.filter(
       (request) => request.collection !== collectionName,
     );
+    if (activeSavedRequest?.collection === collectionName) {
+      activeSavedRequest = null;
+    }
     collapsedCollections.delete(collectionName);
     if (activeCollection === collectionName) {
       activeCollection = collections[0] || "";
@@ -1395,10 +1409,9 @@ function updateMaximizeButton(isMaximized) {
     "aria-label",
     isMaximized ? "Restore window" : "Maximize window",
   );
-  button.querySelector(".maximize-icon").classList.toggle(
-    "restored",
-    isMaximized,
-  );
+  button
+    .querySelector(".maximize-icon")
+    .classList.toggle("restored", isMaximized);
 }
 
 document
@@ -1426,24 +1439,54 @@ document.querySelector("#closeWindow").addEventListener("click", () => {
     showToast("Could not close the window.");
   });
 });
+document.querySelector("#requestTitle").addEventListener("input", (event) => {
+  document.querySelector(".request-tab span:last-of-type").textContent =
+    event.currentTarget.value;
+});
+
+document.querySelector("#requestTitle").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    event.currentTarget.blur();
+  }
+});
+
 document.querySelector("#saveRequest").addEventListener("click", async () => {
   if (!collections.includes(activeCollection)) {
     showToast("Create a collection before saving a request.");
     return;
   }
-  const result = await openAppDialog({
-    title: "Save request",
-    label: "Request name",
-    value: document.querySelector(".breadcrumbs strong").textContent,
-    confirmLabel: "Save",
-  });
-  if (!result?.confirmed) return;
-  const name = result.value.trim();
+
+  let name = document.querySelector("#requestTitle").value.trim();
+  if (!activeSavedRequest) {
+    const result = await openAppDialog({
+      title: "Save request",
+      label: "Request name",
+      value: name,
+      confirmLabel: "Save",
+    });
+    if (!result?.confirmed) return;
+    name = result.value.trim();
+  }
   if (!name) {
     showToast("Request name cannot be empty.");
     return;
   }
+  if (
+    activeSavedRequest &&
+    savedRequests.some(
+      (item) =>
+        item !== activeSavedRequest &&
+        item.collection === activeCollection &&
+        item.name.toLowerCase() === name.toLowerCase(),
+    )
+  ) {
+    showToast("A request with that name already exists in this collection.");
+    return;
+  }
+
   const request = {
+    ...(activeSavedRequest || {}),
     name,
     collection: activeCollection,
     method: methodSelect.value,
@@ -1452,14 +1495,23 @@ document.querySelector("#saveRequest").addEventListener("click", async () => {
     headers: rowsFor(headersTable),
     body: document.querySelector("#requestBody").value,
   };
-  savedRequests = savedRequests.filter(
-    (item) =>
-      !(item.name === request.name && item.collection === activeCollection),
-  );
-  savedRequests.push(request);
+  if (activeSavedRequest) {
+    savedRequests = savedRequests.map((item) =>
+      item === activeSavedRequest ? request : item,
+    );
+    showToast("Saved request updated.");
+  } else {
+    savedRequests = savedRequests.filter(
+      (item) =>
+        !(item.name === request.name && item.collection === activeCollection),
+    );
+    savedRequests.push(request);
+    showToast("Request saved to your collection.");
+  }
+  activeSavedRequest = request;
+  setRequestTitle(name);
   writeStored(STORAGE_KEYS.requests, savedRequests);
   document.querySelector('[data-sidebar-view="collections"]').click();
-  showToast("Request saved to your collection.");
 });
 appDialogForm.addEventListener("submit", (event) => {
   event.preventDefault();
