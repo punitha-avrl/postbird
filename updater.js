@@ -4,6 +4,8 @@ const fs = require("fs");
 const { app } = require("electron");
 const exec = require("child_process").exec;
 const { writeLog } = require("./app-logger.js");
+const UPDATE_BASE_URL =
+  "https://raw.githubusercontent.com/punitha-avrl/postbird/refs/heads/main/";
 
 function getLocalVersion() {
   const manifestPath = path.join(app.getAppPath(), "manifest.json");
@@ -20,8 +22,6 @@ function restartApp() {
 }
 
 async function downloadUpdate(data) {
-  const baseUrl =
-    "https://raw.githubusercontent.com/punitha-avrl/postbird/refs/heads/main";
   const changedFiles = data.changedFiles || [];
   const newDependencies = data.newDependencies || {};
   writeLog("info", "update", "Downloading application update.", {
@@ -30,7 +30,7 @@ async function downloadUpdate(data) {
   });
 
   for (const file of changedFiles) {
-    const fileUrl = baseUrl + file;
+    const fileUrl = new URL(file, UPDATE_BASE_URL).href;
     const localFilePath = path.join(app.getAppPath(), file);
     try {
       const response = await axios.get(fileUrl, {
@@ -51,6 +51,7 @@ async function downloadUpdate(data) {
         {
           version: data.version,
           file,
+          fileUrl,
           stack: error.stack || "",
         },
       );
