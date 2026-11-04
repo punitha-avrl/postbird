@@ -4,6 +4,7 @@ const https = require("node:https");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const appDir = app.getAppPath();
+const { checkForUpdates } = require("./updater.js");
 
 let mainWindow;
 const gotTheLock = app.requestSingleInstanceLock();
@@ -46,7 +47,19 @@ const createWindow = () => {
   main.once("ready-to-show", () => main.show());
   main.loadFile(path.join(appDir, "index.html"));
   main.maximize();
+  checkForUpdates().catch((error) => {
+    console.error("Error checking for updates:", error);
+  });
 };
+
+setInterval(
+  () => {
+    checkForUpdates().catch((error) => {
+      console.error("Error checking for updates:", error);
+    });
+  },
+  60 * 60 * 24 * 1000,
+); // Check for updates every day (24 hours) in milliseconds
 
 function performRequest({ method, url: requestUrl, headers, body }) {
   const parsedUrl = new URL(requestUrl);

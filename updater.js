@@ -13,6 +13,11 @@ function getLocalVersion() {
   return manifest.version;
 }
 
+function restartApp() {
+  app.relaunch();
+  app.exit(0);
+}
+
 async function downloadUpdate(data) {
   const baseUrl =
     "https://raw.githubusercontent.com/punitha-avrl/post-bird/main/";
@@ -50,6 +55,7 @@ async function downloadUpdate(data) {
       }
     });
   }
+  restartApp();
 }
 
 async function checkForUpdates() {
@@ -72,3 +78,5 @@ async function checkForUpdates() {
     console.error("Error checking for updates:", error);
   }
 }
+
+export { checkForUpdates };
