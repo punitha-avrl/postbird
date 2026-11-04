@@ -1,0 +1,49 @@
+{
+  "info": {
+    "name": "Imported",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Users / List users",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Test",
+            "value": "yes"
+          }
+        ],
+        "url": {
+          "raw": "https://example.test/users?active=true",
+          "query": [
+            {
+              "key": "active",
+              "value": "true"
+            },
+            {
+              "key": "limit",
+              "value": "10",
+              "disabled": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Users / Create user",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "https://example.test/users",
+          "query": []
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\":\"Ada\"}"
+        }
+      }
+    }
+  ]
+}

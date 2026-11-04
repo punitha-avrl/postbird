@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:"
+    />
+    <title>Postbird — API workspace</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </div>
+          <span>postbird</span>
+        </div>
+        <div class="workspace-switcher">
+          <span class="workspace-icon">P</span>
+          <span>Personal workspace</span>
+          <span class="chevron" aria-hidden="true"></span>
+        </div>
+        <div class="topbar-actions">
+          <button class="icon-button" aria-label="Search" title="Search">
+            ⌕
+          </button>
+          <button class="icon-button" aria-label="Settings" title="Settings">
+            ⚙
+          </button>
+          <span class="avatar">PS</span>
+          <div class="window-controls">
+            <button
+              id="minimizeWindow"
+              aria-label="Minimize window"
+              title="Minimize"
+            >
+              −
+            </button>
+            <button
+              id="maximizeWindow"
+              aria-label="Maximize window"
+              title="Maximize"
+            >
+              □
+            </button>
+            <button
+              id="closeWindow"
+              class="close-window"
+              aria-label="Close window"
+              title="Close"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div class="workspace">
+        <aside class="sidebar">
+          <div class="sidebar-tabs">
+            <button class="sidebar-tab active" data-sidebar-view="collections">
+              Collections
+            </button>
+            <button class="sidebar-tab" data-sidebar-view="history">
+              History
+            </button>
+          </div>
+          <div class="sidebar-tools">
+            <div class="sidebar-search">
+              <span>⌕</span
+              ><input
+                id="sidebarSearch"
+                placeholder="Filter collections"
+                aria-label="Filter collections"
+              />
+            </div>
+            <button
+              id="newCollection"
+              class="icon-button small"
+              title="New collection"
+              aria-label="New collection"
+            >
+              ＋
+            </button>
+            <button
+              id="importCollection"
+              class="icon-button small"
+              title="Import a Postman collection"
+              aria-label="Import a Postman collection"
+            >
+              ⇧
+            </button>
+            <input id="collectionFile" type="file" accept=".json,application/json" hidden />
+          </div>
+          <div id="sidebarContent" class="sidebar-content">
+            <div class="collection-heading">
+              <span class="collection-chevron" aria-hidden="true"></span>
+              <span class="folder-icon">▱</span>
+              <span>Getting started</span>
+              <button class="more-button" aria-label="Collection options">
+                ···
+              </button>
+            </div>
+            <button class="sidebar-request selected" data-request="sample">
+              <span class="method-dot get">GET</span>
+              <span>Get a todo</span>
+            </button>
+            <button class="sidebar-request" data-request="sample">
+              <span class="method-dot post">POST</span>
+              <span>Create a todo</span>
+            </button>
+            <div class="sidebar-promo">
+              <div class="promo-icon">✦</div>
+              <strong>Your workspace, your way</strong>
+              <p>
+                Save requests into collections to keep your API work organized.
+              </p>
+              <button id="promoCreate" class="text-button">
+                Create a collection <span>→</span>
+              </button>
+            </div>
+          </div>
+          <div class="sidebar-footer">
+            <span class="online-dot"></span>
+            <span>All changes saved locally</span>
+          </div>
+        </aside>
+
+        <main class="main-panel">
+          <div class="tab-strip">
+            <div class="request-tab active">
+              <span class="method-dot get">GET</span><span>Get a todo</span
+              ><button aria-label="Close tab">×</button>
+            </div>
+            <button id="newRequestTab" class="new-tab" title="New request">
+              ＋
+            </button>
+            <div class="tab-strip-spacer"></div>
+            <button class="environment-button">
+              <span class="environment-dot"></span>No environment
+              <span class="chevron" aria-hidden="true"></span>
+            </button>
+          </div>
+
+          <div class="request-area">
+            <div class="request-heading">
+              <div class="breadcrumbs">
+                <span>Getting started</span
+                ><span class="crumb-separator">/</span
+                ><strong>Get a todo</strong
+                ><button class="edit-title" aria-label="Rename request">
+                  ✎
+                </button>
+              </div>
+              <div class="request-actions">
+                <button id="saveRequest" class="secondary-button">
+                  <span>▣</span> Save <span class="button-caret" aria-hidden="true"></span>
+                </button>
+                <button
+                  class="icon-button small"
+                  title="Share request"
+                  aria-label="Share request"
+                >
+                  ↗
+                </button>
+                <button
+                  class="icon-button small"
+                  title="Code snippets"
+                  aria-label="Code snippets"
+                >
+                  &lt;/&gt;
+                </button>
+              </div>
+            </div>
+            <p class="request-description">
+              Send a request and inspect the response from your API.
+            </p>
+
+            <div class="url-bar">
+              <select id="method" aria-label="HTTP method">
+                <option>GET</option>
+                <option>POST</option>
+                <option>PUT</option>
+                <option>PATCH</option>
+                <option>DELETE</option>
+                <option>HEAD</option>
+                <option>OPTIONS</option>
+              </select>
+              <input
+                id="url"
+                type="text"
+                spellcheck="false"
+                value="https://jsonplaceholder.typicode.com/todos/1"
+                aria-label="Request URL"
+              />
+              <button id="sendButton" class="send-button">
+                <span>Send</span><span class="send-caret" aria-hidden="true"></span>
+              </button>
+            </div>
+
+            <div class="request-options">
+              <div
+                class="option-tabs"
+                role="tablist"
+                aria-label="Request options"
+              >
+                <button class="option-tab active" data-tab="params">
+                  Params <span class="tab-count" id="paramsCount"></span>
+                </button>
+                <button class="option-tab" data-tab="headers">
+                  Headers <span class="tab-count" id="headersCount">0</span>
+                </button>
+                <button class="option-tab" data-tab="body">Body</button>
+                <button class="option-tab" data-tab="auth">Auth</button>
+                <button class="option-tab" data-tab="scripts">Scripts</button>
+                <button class="option-tab" data-tab="settings">Settings</button>
+              </div>
+              <section class="option-panel" id="panel-params">
+                <div class="panel-caption">
+                  <span>Query Params</span
+                  ><button class="clear-button" data-clear="params">
+                    Clear all
+                  </button>
+                </div>
+                <div class="editor-table" id="paramsTable">
+                  <div class="table-header">
+                    <span></span><span>Key</span><span>Value</span
+                    ><span>Description</span><span></span>
+                  </div>
+                </div>
+              </section>
+              <section class="option-panel hidden" id="panel-headers">
+                <div class="panel-caption">
+                  <span>Request Headers</span
+                  ><button class="clear-button" data-clear="headers">
+                    Clear all
+                  </button>
+                </div>
+                <div class="editor-table" id="headersTable">
+                  <div class="table-header">
+                    <span></span><span>Key</span><span>Value</span
+                    ><span>Description</span><span></span>
+                  </div>
+                </div>
+              </section>
+              <section class="option-panel hidden" id="panel-body">
+                <div class="body-toolbar">
+                  <label
+                    ><input type="radio" name="bodyType" checked /> none</label
+                  ><label><input type="radio" name="bodyType" /> raw</label
+                  ><label
+                    ><input type="radio" name="bodyType" /> form-data</label
+                  ><label
+                    ><input type="radio" name="bodyType" />
+                    x-www-form-urlencoded</label
+                  >
+                </div>
+                <textarea
+                  id="requestBody"
+                  class="body-editor"
+                  spellcheck="false"
+                  placeholder='{"title":"New todo","completed":false}'
+                  aria-label="Request body"
+                ></textarea>
+              </section>
+              <section class="option-panel hidden empty-panel" id="panel-auth">
+                <span>🔒</span>
+                <div>
+                  <strong>Authorization</strong>
+                  <p>Authorization can be added as a request header.</p>
+                </div>
+                <button class="secondary-button" data-goto-headers>
+                  Add header
+                </button>
+              </section>
+              <section
+                class="option-panel hidden empty-panel"
+                id="panel-scripts"
+              >
+                <span>⌘</span>
+                <div>
+                  <strong>Coming soon</strong>
+                  <p>Pre-request and test scripts will be available here.</p>
+                </div>
+              </section>
+              <section
+                class="option-panel hidden empty-panel"
+                id="panel-settings"
+              >
+                <span>⚙</span>
+                <div>
+                  <strong>Request settings</strong>
+                  <p>Requests time out after 30 seconds.</p>
+                </div>
+              </section>
+            </div>
+
+            <section class="response-section">
+              <div class="response-topline">
+                <div class="response-title">
+                  Response
+                  <span id="responseLabel" class="response-label"
+                    >Ready to send</span
+                  >
+                </div>
+                <div id="responseMeta" class="response-meta"></div>
+              </div>
+              <div id="responseEmpty" class="response-empty">
+                <div class="empty-illustration">
+                  <div class="empty-window">
+                    <span></span><span></span><span></span><i></i><i></i><i></i>
+                  </div>
+                  <div class="empty-spark">✦</div>
+                </div>
+                <strong>Make a request to see a response</strong>
+                <p>Enter a URL above and hit <kbd>Send</kbd> to get started.</p>
+              </div>
+              <div id="responseContent" class="response-content hidden">
+                <div class="response-toolbar">
+                  <div class="response-tabs">
+                    <button
+                      class="response-tab active"
+                      data-response-view="body"
+                    >
+                      Body</button
+                    ><button class="response-tab" data-response-view="headers">
+                      Headers <span id="responseHeaderCount">0</span>
+                    </button>
+                  </div>
+                  <div class="response-format">
+                    <span id="responseFormat">JSON</span
+                    ><button
+                      id="copyResponse"
+                      class="response-tool"
+                      title="Copy response"
+                    >
+                      ▢</button
+                    ><button
+                      class="response-tool"
+                      id="wrapResponse"
+                      title="Toggle line wrap"
+                    >
+                      ↵
+                    </button>
+                  </div>
+                </div>
+                <pre id="responseBody" class="response-view"></pre>
+                <div id="responseHeaders" class="response-view hidden"></div>
+              </div>
+            </section>
+          </div>
+        </main>
+      </div>
+      <div id="toast" class="toast" role="status"></div>
+      <dialog id="appDialog" class="app-dialog">
+        <form id="appDialogForm" class="app-dialog-form">
+          <div class="dialog-heading">
+            <h2 id="appDialogTitle"></h2>
+            <button type="button" class="dialog-close" aria-label="Close dialog">×</button>
+          </div>
+          <p id="appDialogMessage" class="dialog-message"></p>
+          <label id="appDialogFieldLabel" class="dialog-field-label" for="appDialogInput"></label>
+          <input id="appDialogInput" class="dialog-input" autocomplete="off" />
+          <div class="dialog-actions">
+            <button id="appDialogCancel" type="button" class="secondary-button">Cancel</button>
+            <button id="appDialogConfirm" type="submit" class="dialog-confirm">Create</button>
+          </div>
+        </form>
+      </dialog>
+    </div>
+    <script src="renderer.js"></script>
+  </body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "name": "postman-clone",
+  "version": "1.0.0",
+  "description": "To test Api",
+  "homepage": "https://github.com/punitha-avrl/postman-clone#readme",
+  "bugs": {
+    "url": "https://github.com/punitha-avrl/postman-clone/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/punitha-avrl/postman-clone.git"
+  },
+  "license": "ISC",
+  "author": "Punitha Shunmnugam",
+  "type": "commonjs",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "electron": "^45.2.2"
+  }
+}
