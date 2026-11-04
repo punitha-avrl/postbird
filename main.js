@@ -97,15 +97,18 @@ const createWindow = () => {
   });
   main.loadFile(path.join(appDir, "index.html"));
   main.maximize();
-  checkForUpdates().catch(reportUpdateCheckError);
-};
-
-setInterval(
-  () => {
+  if (app.isPackaged) {
     checkForUpdates().catch(reportUpdateCheckError);
-  },
-  60 * 60 * 24 * 1000,
-); // Check for updates every day (24 hours) in milliseconds
+  }
+};
+if (app.isPackaged) {
+  setInterval(
+    () => {
+      checkForUpdates().catch(reportUpdateCheckError);
+    },
+    60 * 60 * 24 * 1000,
+  ); // Check for updates every day (24 hours) in milliseconds
+}
 
 function isApplicationFrame(event) {
   return (
