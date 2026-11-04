@@ -481,6 +481,23 @@ function setRows(table, items) {
   else addRow(table);
 }
 
+function withDefaultContentType(headers) {
+  const rows = Array.isArray(headers) ? [...headers] : [];
+  if (
+    !rows.some(
+      (row) => row.key?.trim().toLowerCase() === "content-type",
+    )
+  ) {
+    rows.push({
+      enabled: true,
+      key: "Content-Type",
+      value: "application/json",
+      description: "",
+    });
+  }
+  return rows;
+}
+
 function populateParamsFromUrl(clearOnInvalid = false) {
   try {
     const url = new URL(urlInput.value);
@@ -528,7 +545,7 @@ function setRequestTitle(name) {
 function applyRequestInputs(request) {
   urlInput.value = request.url;
   setRequestMethod(request.method || "GET");
-  setRows(headersTable, request.headers || []);
+  setRows(headersTable, withDefaultContentType(request.headers));
   document.querySelector("#requestBody").value = request.body || "";
   const savedBodyType = request.bodyType || (request.body ? "raw" : "none");
   document.querySelectorAll('input[name="bodyType"]').forEach((input) => {
@@ -1448,12 +1465,6 @@ async function sendRequest() {
   }
   const method = methodSelect.value;
   const headers = {};
-  for (const row of rowsFor(headersTable)) {
-    if (row.enabled && row.key) {
-      headers[resolveEnvironmentVariables(row.key, unresolvedVariables)] =
-        resolveEnvironmentVariables(row.value, unresolvedVariables);
-    }
-  }
   const bodyType = document
     .querySelector('input[name="bodyType"]:checked')
     ?.nextSibling?.textContent.trim();
@@ -1464,6 +1475,19 @@ async function sendRequest() {
           document.querySelector("#requestBody").value,
           unresolvedVariables,
         );
+  for (const row of rowsFor(headersTable)) {
+    if (row.enabled && row.key) {
+      if (
+        bodyType === "none" &&
+        row.key.trim().toLowerCase() === "content-type" &&
+        row.value.trim().toLowerCase() === "application/json"
+      ) {
+        continue;
+      }
+      headers[resolveEnvironmentVariables(row.key, unresolvedVariables)] =
+        resolveEnvironmentVariables(row.value, unresolvedVariables);
+    }
+  }
   if (unresolvedVariables.size) {
     showToast(
       `Set environment variable(s): ${[...unresolvedVariables].join(", ")}`,
@@ -1666,7 +1690,10 @@ document.querySelectorAll("[data-clear]").forEach((button) => {
   button.addEventListener("click", () => {
     const table =
       button.dataset.clear === "params" ? paramsTable : headersTable;
-    setRows(table, []);
+    setRows(
+      table,
+      table === headersTable ? withDefaultContentType([]) : [],
+    );
     if (table === paramsTable) updateUrlFromParams();
   });
 });
@@ -2022,7 +2049,7 @@ document.addEventListener("click", (event) => {
 });
 
 populateParamsFromUrl();
-setRows(headersTable, []);
+setRows(headersTable, withDefaultContentType([]));
 if (!getActiveEnvironment()) activeEnvironment = "";
 document.querySelector("#activeEnvironmentName").textContent =
   activeEnvironment || "No environment";

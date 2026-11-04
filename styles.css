@@ -127,6 +127,7 @@ button { color: inherit; cursor: pointer; }
 .hidden { display: none !important; }
 .panel-caption { display: flex; align-items: center; justify-content: space-between; color: #6d747c; font-size: 10px; margin-bottom: 7px; }
 .header-help { margin: 0 0 8px; line-height: 1.45; }
+.header-help { margin: 0 0 8px; line-height: 1.45; }
 .clear-button { border: 0; background: transparent; color: #858b92; font-size: 9px; }
 .editor-table { border: 1px solid #e5e7e9; border-radius: 5px; overflow: hidden; }
 .table-header, .editor-row { display: grid; grid-template-columns: 30px minmax(100px, 1fr) minmax(100px, 1fr) minmax(90px, 1fr) 30px; align-items: center; min-height: 31px; }

@@ -1,5 +1,5 @@
 {
-  "version": "1.0.3",
+  "version": "1.0.0",
   "name": "post-bird",
   "changedFiles": [
     "package.json",
@@ -10,7 +10,8 @@
     "index.html",
     "manifest.json",
     "preload.js",
-    "app-logger.js"
+    "app-logger.js",
+    "styles.css"
   ],
   "newDependencies": {}
 }
