@@ -44,7 +44,7 @@
   },
   "build": {
     "appId": "post-bird",
-    "productName": "post Bird",
+    "productName": "Post Bird",
     "icon": "assets/icon.ico",
     "asar": false,
     "directories": {
