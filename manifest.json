@@ -1,0 +1,6 @@
+{
+  "version": "1.0.0",
+  "name": "post-bird",
+  "changedFiles": ["package.json", "package-lock.json", "main.js"],
+  "newDependencies": {}
+}
