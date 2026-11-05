@@ -470,15 +470,38 @@ function addRow(table, values = {}) {
   remove.addEventListener("click", () => {
     row.remove();
     if (!table.querySelector(".editor-row")) addRow(table);
+    if (table === headersTable) ensureTrailingHeaderRow();
     onChange();
   });
   updateCounts();
+}
+
+function ensureTrailingHeaderRow() {
+  const rows = headersTable.querySelectorAll(".editor-row");
+  const lastRow = rows[rows.length - 1];
+  if (
+    !lastRow ||
+    [...lastRow.querySelectorAll("[data-field]")].some((input) => input.value)
+  ) {
+    addRow(headersTable);
+  }
 }
 
 function setRows(table, items) {
   table.querySelectorAll(".editor-row").forEach((row) => row.remove());
   if (items.length) items.forEach((item) => addRow(table, item));
   else addRow(table);
+  if (table === headersTable) ensureTrailingHeaderRow();
+}
+
+function updateRequestBodyFormatButton() {
+  const isJson =
+    document
+      .querySelector('input[name="bodyType"]:checked')
+      ?.nextSibling?.textContent.trim() === "JSON";
+  document
+    .querySelector("#prettifyRequestBody")
+    .classList.toggle("hidden", !isJson);
 }
 
 function withDefaultContentType(headers) {
@@ -551,6 +574,7 @@ function applyRequestInputs(request) {
   document.querySelectorAll('input[name="bodyType"]').forEach((input) => {
     input.checked = input.nextSibling.textContent.trim() === savedBodyType;
   });
+  updateRequestBodyFormatButton();
   if (Array.isArray(request.params)) {
     setRows(paramsTable, request.params);
     updateUrlFromParams();
@@ -622,6 +646,7 @@ function resetResponseView() {
   activeScenarioId = "";
   responseEmpty.classList.remove("hidden");
   responseContent.classList.add("hidden");
+  document.querySelector("#prettifyResponse").classList.add("hidden");
   document.querySelector("#responseLabel").textContent = "Ready to send";
   document.querySelector("#responseMeta").textContent = "";
   updateScenarioControls();
@@ -1512,6 +1537,7 @@ async function sendRequest() {
   responseEmpty.classList.add("hidden");
   responseContent.classList.remove("hidden");
   responseBody.textContent = "";
+  document.querySelector("#prettifyResponse").classList.add("hidden");
 
   const historyEntry = {
     method,
@@ -1558,6 +1584,7 @@ async function sendRequest() {
     responseBody.textContent =
       error.message || "The request could not be completed.";
     document.querySelector("#responseFormat").textContent = "Text";
+    document.querySelector("#prettifyResponse").classList.add("hidden");
     responseHeaders.replaceChildren();
     document.querySelector("#responseHeaderCount").textContent = "0";
     reportAppError(
@@ -1576,11 +1603,13 @@ async function sendRequest() {
 function displayResponse(result) {
   let displayBody = result.body;
   let format = "Text";
+  let isJson = false;
   const contentType = String(result.headers["content-type"] || "");
   if (contentType.includes("json") || /^[\s]*[{[]/.test(displayBody)) {
     try {
       displayBody = JSON.stringify(JSON.parse(displayBody), null, 2);
       format = "JSON";
+      isJson = true;
     } catch {
       format = "JSON";
     }
@@ -1589,6 +1618,7 @@ function displayResponse(result) {
   }
   responseBody.textContent = displayBody || "(empty response body)";
   document.querySelector("#responseFormat").textContent = format;
+  document.querySelector("#prettifyResponse").classList.toggle("hidden", !isJson);
   responseHeaders.replaceChildren();
   const headerEntries = Object.entries(result.headers);
   document.querySelector("#responseHeaderCount").textContent =
@@ -1696,6 +1726,13 @@ document.querySelectorAll("[data-clear]").forEach((button) => {
     );
     if (table === paramsTable) updateUrlFromParams();
   });
+});
+
+document.querySelector("[data-add-header]").addEventListener("click", () => {
+  ensureTrailingHeaderRow();
+  headersTable.lastElementChild
+    .querySelector('[data-field="key"]')
+    .focus();
 });
 
 document
@@ -1810,6 +1847,35 @@ document.querySelector("#deleteEnvironment").addEventListener("click", () => {
   showToast("Environment deleted.");
 });
 document.querySelector("#sendButton").addEventListener("click", sendRequest);
+document.querySelectorAll('input[name="bodyType"]').forEach((input) => {
+  input.addEventListener("change", updateRequestBodyFormatButton);
+});
+document
+  .querySelector("#prettifyRequestBody")
+  .addEventListener("click", () => {
+    const body = document.querySelector("#requestBody");
+    try {
+      body.value = JSON.stringify(JSON.parse(body.value), null, 2);
+    } catch (error) {
+      reportAppError("Unable to prettify request JSON", error);
+      showToast("Request body is not valid JSON.");
+      body.focus();
+    }
+  });
+document
+  .querySelector("#prettifyResponse")
+  .addEventListener("click", () => {
+    try {
+      responseBody.textContent = JSON.stringify(
+        JSON.parse(currentResponseResult.body),
+        null,
+        2,
+      );
+    } catch (error) {
+      reportAppError("Unable to prettify response JSON", error);
+      showToast("Response body is not valid JSON.");
+    }
+  });
 document.querySelector("#themeToggle").addEventListener("click", () => {
   applyTheme(document.body.dataset.theme === "dark" ? "light" : "dark", true);
 });

@@ -279,10 +279,15 @@
               </section>
               <section class="option-panel hidden" id="panel-headers">
                 <div class="panel-caption">
-                  <span>Request Headers</span
-                  ><button class="clear-button" data-clear="headers">
-                    Clear all
-                  </button>
+                  <span>Request Headers</span>
+                  <span>
+                    <button class="clear-button" data-add-header>
+                      Add header
+                    </button>
+                    <button class="clear-button" data-clear="headers">
+                      Clear all
+                    </button>
+                  </span>
                 </div>
                 <p class="request-description header-help">
                   Browser-controlled headers cannot be overridden. For
@@ -298,15 +303,24 @@
               </section>
               <section class="option-panel hidden" id="panel-body">
                 <div class="body-toolbar">
+                  <span>Body type</span>
                   <label
                     ><input type="radio" name="bodyType" checked /> none</label
                   ><label><input type="radio" name="bodyType" /> raw</label
+                  ><label><input type="radio" name="bodyType" /> JSON</label
                   ><label
                     ><input type="radio" name="bodyType" /> form-data</label
                   ><label
                     ><input type="radio" name="bodyType" />
                     x-www-form-urlencoded</label
                   >
+                  <button
+                    class="clear-button hidden"
+                    id="prettifyRequestBody"
+                    type="button"
+                  >
+                    Prettify
+                  </button>
                 </div>
                 <textarea
                   id="requestBody"
@@ -392,6 +406,14 @@
                   </div>
                   <div class="response-format">
                     <span id="responseFormat">JSON</span
+                    ><button
+                      class="response-tool hidden"
+                      id="prettifyResponse"
+                      title="Prettify JSON response"
+                      type="button"
+                    >
+                      Pretty
+                    </button
                     ><button
                       id="copyResponse"
                       class="response-tool"
