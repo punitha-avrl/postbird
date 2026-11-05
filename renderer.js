@@ -23,6 +23,7 @@ let activeCollection = "Getting started";
 let activeSavedRequest = null;
 let currentResponseResult = null;
 let currentResponseRequest = null;
+let networkItems = [];
 let activeScenarioId = "";
 let toastTimer;
 let dialogResolve;
@@ -288,68 +289,6 @@ function logRequest(method, url, headers, body) {
   });
 }
 
-async function sendHttpRequest({ method, url, headers, body }) {
-  const parsedUrl = new URL(url);
-  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-    throw new Error("Only HTTP and HTTPS URLs are supported.");
-  }
-  if (url.length > 8192) {
-    throw new Error("The request URL is too long.");
-  }
-
-  const startedAt = Date.now();
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
-  try {
-    const response = await fetch(url, {
-      method,
-      headers,
-      body: body && !["GET", "HEAD"].includes(method) ? body : undefined,
-      signal: controller.signal,
-      redirect: "follow",
-    });
-    const chunks = [];
-    let totalBytes = 0;
-    const maxResponseBytes = 10 * 1024 * 1024;
-    const reader = response.body?.getReader();
-
-    if (reader) {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        totalBytes += value.byteLength;
-        if (totalBytes > maxResponseBytes) {
-          await reader.cancel();
-          throw new Error("Response is larger than the 10 MB limit.");
-        }
-        chunks.push(value);
-      }
-    }
-
-    const responseBytes = new Uint8Array(totalBytes);
-    let offset = 0;
-    for (const chunk of chunks) {
-      responseBytes.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-
-    return {
-      status: response.status,
-      statusText: response.statusText,
-      headers: Object.fromEntries(response.headers.entries()),
-      body: new TextDecoder().decode(responseBytes),
-      duration: Date.now() - startedAt,
-    };
-  } catch (error) {
-    if (error.name === "AbortError") {
-      throw new Error("Request timed out after 30 seconds.");
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
 function showToast(message) {
   toast.textContent = message;
   toast.classList.add("visible");
@@ -506,11 +445,7 @@ function updateRequestBodyFormatButton() {
 
 function withDefaultContentType(headers) {
   const rows = Array.isArray(headers) ? [...headers] : [];
-  if (
-    !rows.some(
-      (row) => row.key?.trim().toLowerCase() === "content-type",
-    )
-  ) {
+  if (!rows.some((row) => row.key?.trim().toLowerCase() === "content-type")) {
     rows.push({
       enabled: true,
       key: "Content-Type",
@@ -1196,6 +1131,88 @@ function renderHistory() {
   }
 }
 
+function formatNetworkBody(body) {
+  if (!body) return "(empty)";
+  try {
+    return JSON.stringify(JSON.parse(body), null, 2);
+  } catch {
+    return body;
+  }
+}
+
+function showNetworkDetails(item) {
+  const dialog = document.querySelector("#networkDetailDialog");
+  document.querySelector("#networkDetailTitle").textContent =
+    `${item.method} ${item.url}`;
+  document.querySelector("#networkDetailSummary").textContent = [
+    new Date(item.startedAt).toLocaleString(),
+    item.status ? `${item.status} ${item.statusText}` : item.error || "Pending",
+    item.duration == null ? "" : `${item.duration} ms`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  document.querySelector("#networkRequestHeaders").textContent = JSON.stringify(
+    item.requestHeaders,
+    null,
+    2,
+  );
+  document.querySelector("#networkRequestBody").textContent = formatNetworkBody(
+    item.requestBody,
+  );
+  document.querySelector("#networkResponseHeaders").textContent =
+    JSON.stringify(item.responseHeaders || {}, null, 2);
+  document.querySelector("#networkResponseBody").textContent =
+    formatNetworkBody(item.responseBody || item.error || "");
+  dialog.showModal();
+}
+
+function renderNetwork() {
+  const content = document.querySelector("#sidebarContent");
+  content.replaceChildren();
+  const caption = document.createElement("p");
+  caption.className = "network-caption";
+  caption.textContent = "Requests from this session (most recent first).";
+  content.append(caption);
+
+  if (!networkItems.length) {
+    const empty = document.createElement("p");
+    empty.className = "collection-empty";
+    empty.textContent = "API requests will appear here.";
+    content.append(empty);
+    return;
+  }
+
+  for (const item of networkItems) {
+    const button = document.createElement("button");
+    button.className = "network-item";
+    button.type = "button";
+    const method = document.createElement("span");
+    method.className = `method-dot ${item.method.toLowerCase()}`;
+    method.textContent = item.method;
+    const url = document.createElement("span");
+    url.className = "network-item-url";
+    url.textContent = item.url;
+    const status = document.createElement("span");
+    const isError = Boolean(item.error) || item.status >= 400;
+    status.className = `network-item-status${isError ? " error" : ""}`;
+    status.textContent = item.status
+      ? String(item.status)
+      : item.error
+        ? "ERR"
+        : "…";
+    button.append(method, url, status);
+    button.addEventListener("click", () => showNetworkDetails(item));
+    content.append(button);
+  }
+  const query = document.querySelector("#sidebarSearch").value.toLowerCase();
+  content.querySelectorAll(".network-item").forEach((item) => {
+    item.classList.toggle(
+      "hidden",
+      !item.textContent.toLowerCase().includes(query),
+    );
+  });
+}
+
 async function renderAppLogs() {
   const content = document.querySelector("#sidebarContent");
   const logsTab = document.querySelector('[data-sidebar-view="logs"]');
@@ -1539,6 +1556,23 @@ async function sendRequest() {
   responseBody.textContent = "";
   document.querySelector("#prettifyResponse").classList.add("hidden");
 
+  const networkItem = {
+    method,
+    url: sanitizeRequestUrl(requestUrl),
+    startedAt: Date.now(),
+    requestHeaders: sanitizeRequestHeaders(headers),
+    requestBody: body,
+  };
+  networkItems.unshift(networkItem);
+  networkItems = networkItems.slice(0, 50);
+  if (
+    document
+      .querySelector('[data-sidebar-view="network"]')
+      .classList.contains("active")
+  ) {
+    renderNetwork();
+  }
+
   const historyEntry = {
     method,
     url: urlInput.value,
@@ -1552,11 +1586,18 @@ async function sendRequest() {
   };
   try {
     logRequest(method, requestUrl, headers, body);
-    const result = await sendHttpRequest({
+    const result = await window.apiClient.sendHttpRequest({
       method,
       url: requestUrl,
       headers,
       body,
+    });
+    Object.assign(networkItem, {
+      status: result.status,
+      statusText: result.statusText,
+      responseHeaders: sanitizeRequestHeaders(result.headers),
+      responseBody: result.body,
+      duration: result.duration,
     });
     console.info(
       `[API response] ${method} ${sanitizeRequestUrl(requestUrl)} — ${result.status} ${result.statusText} (${result.duration} ms)`,
@@ -1570,10 +1611,28 @@ async function sendRequest() {
     );
     currentResponseRequest = requestSnapshot;
     showResponseResult(result);
+    if (
+      document
+        .querySelector('[data-sidebar-view="network"]')
+        .classList.contains("active")
+    ) {
+      renderNetwork();
+    }
     historyItems.unshift(historyEntry);
     historyItems = historyItems.slice(0, 40);
     writeStored(STORAGE_KEYS.history, historyItems);
   } catch (error) {
+    Object.assign(networkItem, {
+      error: error.message || "The request could not be completed.",
+      duration: Date.now() - networkItem.startedAt,
+    });
+    if (
+      document
+        .querySelector('[data-sidebar-view="network"]')
+        .classList.contains("active")
+    ) {
+      renderNetwork();
+    }
     currentResponseResult = null;
     currentResponseRequest = null;
     activeScenarioId = "";
@@ -1618,7 +1677,9 @@ function displayResponse(result) {
   }
   responseBody.textContent = displayBody || "(empty response body)";
   document.querySelector("#responseFormat").textContent = format;
-  document.querySelector("#prettifyResponse").classList.toggle("hidden", !isJson);
+  document
+    .querySelector("#prettifyResponse")
+    .classList.toggle("hidden", !isJson);
   responseHeaders.replaceChildren();
   const headerEntries = Object.entries(result.headers);
   document.querySelector("#responseHeaderCount").textContent =
@@ -1698,9 +1759,11 @@ document.querySelectorAll(".sidebar-tab").forEach((tab) => {
     search.placeholder =
       view === "history"
         ? "Filter history"
-        : view === "logs"
-          ? "Filter logs"
-          : "Filter collections";
+        : view === "network"
+          ? "Filter requests"
+          : view === "logs"
+            ? "Filter logs"
+            : "Filter collections";
     document
       .querySelector("#newCollection")
       .classList.toggle("hidden", view !== "collections");
@@ -1711,6 +1774,7 @@ document.querySelectorAll(".sidebar-tab").forEach((tab) => {
       .querySelector("#refreshLogs")
       .classList.toggle("hidden", view !== "logs");
     if (view === "history") renderHistory();
+    else if (view === "network") renderNetwork();
     else if (view === "logs") renderAppLogs();
     else renderCollections();
   });
@@ -1720,19 +1784,14 @@ document.querySelectorAll("[data-clear]").forEach((button) => {
   button.addEventListener("click", () => {
     const table =
       button.dataset.clear === "params" ? paramsTable : headersTable;
-    setRows(
-      table,
-      table === headersTable ? withDefaultContentType([]) : [],
-    );
+    setRows(table, table === headersTable ? withDefaultContentType([]) : []);
     if (table === paramsTable) updateUrlFromParams();
   });
 });
 
 document.querySelector("[data-add-header]").addEventListener("click", () => {
   ensureTrailingHeaderRow();
-  headersTable.lastElementChild
-    .querySelector('[data-field="key"]')
-    .focus();
+  headersTable.lastElementChild.querySelector('[data-field="key"]').focus();
 });
 
 document
@@ -1847,35 +1906,34 @@ document.querySelector("#deleteEnvironment").addEventListener("click", () => {
   showToast("Environment deleted.");
 });
 document.querySelector("#sendButton").addEventListener("click", sendRequest);
+document.querySelector("#networkDetailClose").addEventListener("click", () => {
+  document.querySelector("#networkDetailDialog").close();
+});
 document.querySelectorAll('input[name="bodyType"]').forEach((input) => {
   input.addEventListener("change", updateRequestBodyFormatButton);
 });
-document
-  .querySelector("#prettifyRequestBody")
-  .addEventListener("click", () => {
-    const body = document.querySelector("#requestBody");
-    try {
-      body.value = JSON.stringify(JSON.parse(body.value), null, 2);
-    } catch (error) {
-      reportAppError("Unable to prettify request JSON", error);
-      showToast("Request body is not valid JSON.");
-      body.focus();
-    }
-  });
-document
-  .querySelector("#prettifyResponse")
-  .addEventListener("click", () => {
-    try {
-      responseBody.textContent = JSON.stringify(
-        JSON.parse(currentResponseResult.body),
-        null,
-        2,
-      );
-    } catch (error) {
-      reportAppError("Unable to prettify response JSON", error);
-      showToast("Response body is not valid JSON.");
-    }
-  });
+document.querySelector("#prettifyRequestBody").addEventListener("click", () => {
+  const body = document.querySelector("#requestBody");
+  try {
+    body.value = JSON.stringify(JSON.parse(body.value), null, 2);
+  } catch (error) {
+    reportAppError("Unable to prettify request JSON", error);
+    showToast("Request body is not valid JSON.");
+    body.focus();
+  }
+});
+document.querySelector("#prettifyResponse").addEventListener("click", () => {
+  try {
+    responseBody.textContent = JSON.stringify(
+      JSON.parse(currentResponseResult.body),
+      null,
+      2,
+    );
+  } catch (error) {
+    reportAppError("Unable to prettify response JSON", error);
+    showToast("Response body is not valid JSON.");
+  }
+});
 document.querySelector("#themeToggle").addEventListener("click", () => {
   applyTheme(document.body.dataset.theme === "dark" ? "light" : "dark", true);
 });
@@ -2082,7 +2140,7 @@ document.querySelector("#sidebarSearch").addEventListener("input", (event) => {
   const query = event.target.value.toLowerCase();
   document
     .querySelectorAll(
-      ".sidebar-request, .sidebar-history-item, .collection-heading, .app-log-row",
+      ".sidebar-request, .sidebar-history-item, .network-item, .collection-heading, .app-log-row",
     )
     .forEach((item) => {
       item.classList.toggle(

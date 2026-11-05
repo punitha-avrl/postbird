@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("apiClient", {
   closeWindow: () => ipcRenderer.invoke("window:close"),
   getAppVersion: () => ipcRenderer.invoke("app:get-version"),
   getAppLogs: (limit) => ipcRenderer.invoke("logs:get", limit),
+  sendHttpRequest: (request) => ipcRenderer.invoke("request:send", request),
   logAppError: (context, message, stack) =>
     ipcRenderer.invoke("logs:renderer-error", { context, message, stack }),
 });

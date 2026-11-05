@@ -10,6 +10,7 @@ const {
 } = require("./app-logger.js");
 const appDir = app.getAppPath();
 const { checkForUpdates } = require("./updater.js");
+const { sendHttpRequest } = require("./request-client.js");
 
 let mainWindow;
 const gotTheLock = app.requestSingleInstanceLock();
@@ -155,6 +156,13 @@ ipcMain.handle("logs:renderer-error", (event, error) => {
     source: "renderer",
     stack: error.stack || "",
   });
+});
+
+ipcMain.handle("request:send", (event, request) => {
+  if (!isApplicationFrame(event)) {
+    throw new Error("Requests can only be sent by the application window.");
+  }
+  return sendHttpRequest(request);
 });
 
 for (const [channel, action] of [

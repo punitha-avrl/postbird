@@ -17,7 +17,7 @@
           <div class="brand-mark" aria-hidden="true">
             <span></span><span></span><span></span>
           </div>
-          <span>Post Bird</span>
+          <span>Post Bird Test</span>
         </div>
         <div class="workspace-switcher">
           <span class="workspace-icon">P</span>
@@ -72,6 +72,9 @@
             </button>
             <button class="sidebar-tab" data-sidebar-view="history">
               History
+            </button>
+            <button class="sidebar-tab" data-sidebar-view="network">
+              Network
             </button>
             <button class="sidebar-tab" data-sidebar-view="logs">Logs</button>
           </div>
@@ -412,8 +415,7 @@
                       title="Prettify JSON response"
                       type="button"
                     >
-                      Pretty
-                    </button
+                      Pretty</button
                     ><button
                       id="copyResponse"
                       class="response-tool"
@@ -522,6 +524,40 @@
             <button type="submit" class="dialog-confirm">Save</button>
           </div>
         </form>
+      </dialog>
+      <dialog id="networkDetailDialog" class="app-dialog network-detail-dialog">
+        <div class="app-dialog-form">
+          <div class="dialog-heading">
+            <h2 id="networkDetailTitle">Request details</h2>
+            <button
+              type="button"
+              class="dialog-close"
+              id="networkDetailClose"
+              aria-label="Close dialog"
+            >
+              ×
+            </button>
+          </div>
+          <p id="networkDetailSummary" class="dialog-message"></p>
+          <p class="network-detail-note">
+            Sensitive headers are redacted. Request details are kept in memory
+            for this session only.
+          </p>
+          <div class="network-detail-sections">
+            <section>
+              <h3>Request headers</h3>
+              <pre id="networkRequestHeaders"></pre>
+              <h3>Request body</h3>
+              <pre id="networkRequestBody"></pre>
+            </section>
+            <section>
+              <h3>Response headers</h3>
+              <pre id="networkResponseHeaders"></pre>
+              <h3>Response body</h3>
+              <pre id="networkResponseBody"></pre>
+            </section>
+          </div>
+        </div>
       </dialog>
     </div>
     <script src="renderer.js"></script>
